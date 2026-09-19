@@ -30,9 +30,9 @@ The default agent is `main`. Heartbeat, cron and subagent trigger values are exc
 
 ## Compatibility and prerequisites
 
-The original integration was verified against OpenClaw 2026.9.3. It needs Node 22+, Python 3, access to the configured models and the host's direct-completion API. This repository does not supply model access or credentials.
+The compatibility patcher supports the exact OpenClaw 2026.9.3 and 2026.9.5 bundles. Current OpenClaw releases require Node 24.16+ (or Node 26.1+); the patcher also needs Python 3. Access to the configured models and the host's direct-completion API is required. This repository does not supply model access or credentials.
 
-The inspected OpenClaw build lacked a dynamic thinking override. [compat.py](compat.py) patches five exact, hash-pinned runtime files. **Run its check before applying it.** A different build must receive a new compatibility review. Do not bypass hash checks. See [COMPATIBILITY.md](COMPATIBILITY.md) for the contract and rollback.
+The inspected OpenClaw build lacks a public dynamic thinking override. [compat.py](compat.py) patches exact, hash-pinned runtime files for the supported releases. **Run its check before applying it.** A different build must receive a new compatibility review. Do not bypass hash checks. See [COMPATIBILITY.md](COMPATIBILITY.md) for the contract and rollback.
 
 The default classifier is `openai-api/gpt-5.6-luna`. Match the provider alias in `classifier.js` and the allowed-model configuration to your installation. Also adapt the execution model IDs in `policy.js` to models you can access, then evaluate the resulting policy.
 
@@ -81,7 +81,7 @@ npm test
 OPENCLAW_ROUTER_FIXTURES=/path/to/pinned/originals npm run test:compat
 ```
 
-The first command runs 18 portable policy/plugin tests. The second runs 14 compatibility tests against the five original runtime files identified in `compat.py`. Obtain those files from your matching installation or its validated compatibility backup. They are not distributed here. A missing fixture directory is an error, not a skipped success.
+The first command runs 18 portable policy/plugin tests. The second runs 14 compatibility tests against the original runtime files for the matching profile identified in `compat.py`. Obtain those files from your matching installation or its validated compatibility backup. They are not distributed here. A missing fixture directory is an error, not a skipped success.
 
 The `evals` directory contains synthetic classifier cases and a runner. Historical expected labels predate the current policy and are preserved for comparison; do not treat them as current acceptance criteria. The medical and production examples are invented classification tests, not personal records or instructions to execute.
 

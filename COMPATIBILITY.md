@@ -1,6 +1,8 @@
-# OpenClaw 2026.9.3 compatibility
+# OpenClaw compatibility
 
-Stock OpenClaw accepts model and provider overrides from `before_model_resolve`, but has no thinking override. This extension adds a transient effort choice to the inspected 2026.9.3 build. It patches installed runtime JavaScript; it is not part of OpenClaw's public SDK contract.
+Stock OpenClaw accepts model and provider overrides from `before_model_resolve`, but has no thinking override. This extension adds a transient effort choice to the inspected 2026.9.3 and 2026.9.5 builds. It patches installed runtime JavaScript; it is not part of OpenClaw's public SDK contract.
+
+Supported releases are exact bundle profiles, selected by filename and SHA256. Unknown or mixed builds are refused.
 
 The plugin checks `routingThinkingSupported: true` before routing. Without this marker it leaves the host selection alone. An upgrade that changes the pinned files requires a new compatibility review.
 
@@ -12,6 +14,13 @@ Explicit model choices prevent hook model/provider replacement. Explicit thinkin
 
 Each run caches its classification. If the host retries with a different provider/model, or marks a fallback retry, the plugin preserves that candidate and applies only the cached effort. It does not repeatedly select the failed provider. This uses the hook's per-attempt context; no shared model configuration or session thinking setting is mutated.
 
+## Supported profiles
+
+| OpenClaw | Runtime files patched |
+| --- | ---: |
+| 2026.9.3 | 5 |
+| 2026.9.5 | 4 |
+
 ## Changed files
 
 | Runtime file | Change |
@@ -22,7 +31,7 @@ Each run caches its classification. If the host retries with a different provide
 | `setup-4a_QaRYo.mjs` | Emits the capability/state markers, validates returned effort, and preserves explicit selections. |
 | `hook-runner-global-aekT_Vmt.mjs` | Merges the thinking override alongside model/provider results. |
 
-Exact original and patched SHA256 hashes live in `compat.py`. The patcher refuses unknown content before writing and keeps validated original backups in `.openclaw-compat-backup` under the runtime's `dist` directory. Writes replace individual files atomically and roll back on handled write failures. The set of five writes is not a single filesystem transaction; interruption can leave a mixed state, which `--restore` handles using validated backups.
+Exact original and patched SHA256 hashes live in `compat.py`. The patcher refuses unknown content before writing and keeps validated original backups in `.openclaw-compat-backup` under the runtime's `dist` directory. Writes replace individual files atomically and roll back on handled write failures. The writes are not a single filesystem transaction; interruption can leave a mixed state, which `--restore` handles using validated backups.
 
 ## Check, apply, and restore
 
@@ -36,6 +45,6 @@ Repeated apply/restore calls are idempotent. Restart the gateway after applicati
 
 ## Verification
 
-`OPENCLAW_ROUTER_FIXTURES=/path/to/pinned/originals npm run test:compat` checks preflight rejection, patch/restore hashes, repeated operations, mixed-state restoration, and JavaScript syntax for all five files. It executes extracted runtime expressions/functions for manual flags, hook precedence, and effort application. `npm test` runs the portable plugin tests, covering fallback candidates and concurrent session isolation. The compatibility command requires the five original runtime files listed above; the repository does not include them.
+`OPENCLAW_ROUTER_FIXTURES=/path/to/pinned/originals npm run test:compat` checks preflight rejection, patch/restore hashes, repeated operations, mixed-state restoration, and JavaScript syntax for the matching profile. It executes extracted runtime expressions/functions for manual flags, hook precedence, and effort application. `npm test` runs the portable plugin tests, covering fallback candidates and concurrent session isolation. The compatibility command requires the original runtime files listed in `compat.py`; the repository does not include them.
 
 These tests do not substitute for live gateway checks. Acceptance also requires observing actual execution model and reasoning effort, preserving manual model/thinking choices, and confirming gateway health. Public benchmark scores do not verify this runtime integration.

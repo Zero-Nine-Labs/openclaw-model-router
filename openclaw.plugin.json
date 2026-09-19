@@ -1,8 +1,11 @@
 {
   "id": "model-router",
   "name": "Difficulty and urgency model router",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Classify with Luna low; route model and effort using difficulty, urgency, scope and consequences.",
+  "activation": {
+    "onCapabilities": ["hook"]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
