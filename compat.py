@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OpenClaw 2026.9.3 Compatibility Patcher for Model Router Plugin.
+"""OpenClaw compatibility patcher for the Model Router Plugin.
 
 Provides explicit, safe, and idempotent compatibility patching for OpenClaw host
 files to support thinking effort routing via before_model_resolve hooks without
@@ -253,6 +253,177 @@ PATCH_TRANSFORMS = {
     ],
 }
 
+OPENCLAW_2026_9_5_ORIGINAL_HASHES = {
+    "agent-runner-utils-DzcJJCSY.mjs": "25be3d66c7bd4876d65a759c61f6c6817d363d1602beb5612094187021643122",
+    "embedded-agent-BEeEP6_K.mjs": "e1a39e81429d64de2800475fba80bf297d76acbd8885cdfc418d16faf68ff374",
+    "hooks-Jjh3afyP.mjs": "94e01df2379fd8657bff777eabe6f75c0bf25dfa70ab3127257b570931bc7bb8",
+    "setup-Dxn9LXe0.mjs": "c02642b3783fc0d9c52114e5a44cba486e2c6191e3eb3be8929902180ca76e59",
+}
+
+OPENCLAW_2026_9_5_PATCHED_HASHES = {
+    "agent-runner-utils-DzcJJCSY.mjs": "e1f69fd72218686834d4c786728befa62fcf9e2702c43e939933ff9d0a63a097",
+    "embedded-agent-BEeEP6_K.mjs": "f42c2c40b2d2254dd3a58e3f3ca4dad8b5ee0a8394f350fbfe91cc1733024f2e",
+    "hooks-Jjh3afyP.mjs": "d7875a893c9a16b8b6ba6db4d7a20cd7511403d3d1ec8e8a6caaca0ce8092bce",
+    "setup-Dxn9LXe0.mjs": "e17bd889e2049e69667c8fd33ff84a741bcb978a729da2ead4d72b0850f43599",
+}
+
+PATCH_TRANSFORMS_2026_9_5 = {
+    "hooks-Jjh3afyP.mjs": [
+        (
+            "\tconst mergeBeforeModelResolve = (acc, next) => ({\n"
+            "\t\tmodelOverride: firstDefined(acc?.modelOverride, next.modelOverride),\n"
+            "\t\tproviderOverride: firstDefined(acc?.providerOverride, next.providerOverride)\n"
+            "\t});",
+            "\tconst mergeBeforeModelResolve = (acc, next) => ({\n"
+            "\t\tmodelOverride: firstDefined(acc?.modelOverride, next.modelOverride),\n"
+            "\t\tproviderOverride: firstDefined(acc?.providerOverride, next.providerOverride),\n"
+            "\t\tthinkingOverride: firstDefined(acc?.thinkingOverride, next.thinkingOverride)\n"
+            "\t});",
+        ),
+    ],
+    "setup-Dxn9LXe0.mjs": [
+        (
+            "async function resolveHookModelSelection(params) {\n"
+            "\tlet provider = params.provider;\n"
+            "\tlet modelId = params.modelId;\n"
+            "\tif (params.modelSelectionLocked === true) return {\n"
+            "\t\tprovider,\n"
+            "\t\tmodelId\n"
+            "\t};\n"
+            "\tlet modelResolveOverride;\n"
+            "\tconst hookRunner = params.hookRunner;\n"
+            "\tif (hookRunner?.hasHooks(\"before_model_resolve\")) try {\n"
+            "\t\tconst event = params.attachments ? {\n"
+            "\t\t\tprompt: params.prompt,\n"
+            "\t\t\tattachments: params.attachments\n"
+            "\t\t} : { prompt: params.prompt };\n"
+            "\t\tmodelResolveOverride = await hookRunner.runBeforeModelResolve(event, params.hookContext);\n"
+            "\t} catch (hookErr) {\n"
+            "\t\tlog.warn(`before_model_resolve hook failed: ${String(hookErr)}`);\n"
+            "\t}\n"
+            "\tif (modelResolveOverride?.providerOverride) {\n"
+            "\t\tprovider = modelResolveOverride.providerOverride;\n"
+            "\t\tlog.info(`[hooks] provider overridden to ${provider}`);\n"
+            "\t}\n"
+            "\tif (modelResolveOverride?.modelOverride) {\n"
+            "\t\tmodelId = modelResolveOverride.modelOverride;\n"
+            "\t\tlog.info(`[hooks] model overridden to ${modelId}`);\n"
+            "\t}\n"
+            "\treturn {\n"
+            "\t\tprovider,\n"
+            "\t\tmodelId\n"
+            "\t};\n"
+            "}",
+            "async function resolveHookModelSelection(params) {\n"
+            "\tlet provider = params.provider;\n"
+            "\tlet modelId = params.modelId;\n"
+            "\tif (params.modelSelectionLocked === true) return {\n"
+            "\t\tprovider,\n"
+            "\t\tmodelId\n"
+            "\t};\n"
+            "\tconst thinkingExplicit = params.thinkLevelOverride !== void 0;\n"
+            "\tlet thinkingOverride;\n"
+            "\tlet modelResolveOverride;\n"
+            "\tconst hookRunner = params.hookRunner;\n"
+            "\tif (hookRunner?.hasHooks(\"before_model_resolve\")) try {\n"
+            "\t\tconst event = {\n"
+            "\t\t\tprompt: params.prompt,\n"
+            "\t\t\t...(params.attachments ? { attachments: params.attachments } : {}),\n"
+            "\t\t\troutingThinkingSupported: true,\n"
+            "\t\t\tthinkingExplicit\n"
+            "\t\t};\n"
+            "\t\tmodelResolveOverride = await hookRunner.runBeforeModelResolve(event, {\n"
+            "\t\t\t...params.hookContext,\n"
+            "\t\t\tmodelProviderId: params.provider,\n"
+            "\t\t\tmodelId: params.modelId\n"
+            "\t\t});\n"
+            "\t} catch (hookErr) {\n"
+            "\t\tlog.warn(`before_model_resolve hook failed: ${String(hookErr)}`);\n"
+            "\t}\n"
+            "\tif (modelResolveOverride?.providerOverride) {\n"
+            "\t\tprovider = modelResolveOverride.providerOverride;\n"
+            "\t\tlog.info(`[hooks] provider overridden to ${provider}`);\n"
+            "\t}\n"
+            "\tif (modelResolveOverride?.modelOverride) {\n"
+            "\t\tmodelId = modelResolveOverride.modelOverride;\n"
+            "\t\tlog.info(`[hooks] model overridden to ${modelId}`);\n"
+            "\t}\n"
+            "\tif (modelResolveOverride?.thinkingOverride !== void 0 && !thinkingExplicit) {\n"
+            "\t\tconst rawThinking = String(modelResolveOverride.thinkingOverride).trim().toLowerCase();\n"
+            "\t\tif ([\"low\", \"medium\", \"high\", \"max\"].includes(rawThinking)) {\n"
+            "\t\t\tthinkingOverride = rawThinking;\n"
+            "\t\t\tlog.info(`[hooks] thinking overridden to ${thinkingOverride}`);\n"
+            "\t\t} else log.warn(`[hooks] invalid thinking override ignored: ${modelResolveOverride.thinkingOverride}`);\n"
+            "\t}\n"
+            "\treturn {\n"
+            "\t\tprovider,\n"
+            "\t\tmodelId,\n"
+            "\t\t...thinkingOverride !== void 0 ? { thinkingOverride } : {}\n"
+            "\t};\n"
+            "}",
+        ),
+    ],
+    "agent-runner-utils-DzcJJCSY.mjs": [
+        (
+            "\t\tthinkLevel: params.run.thinkLevel,\n"
+            "\t\tfastMode: params.run.fastMode,",
+            "\t\tthinkLevel: params.run.thinkLevel,\n"
+            "\t\tthinkLevelOverride: params.run.thinkLevelOverride,\n"
+            "\t\tfastMode: params.run.fastMode,",
+        ),
+    ],
+    "embedded-agent-BEeEP6_K.mjs": [
+        (
+            "\t\tmodelSelectionLocked: runParams.modelSelectionLocked,\n"
+            "\t\thookRunner: params.hookRunner,",
+            "\t\tmodelSelectionLocked: runParams.modelSelectionLocked,\n"
+            "\t\tthinkLevelOverride: runParams.thinkLevelOverride,\n"
+            "\t\thookRunner: params.hookRunner,",
+        ),
+        (
+            "\t\tmodel,\n"
+            "\t\tauthStorage,\n"
+            "\t\tmodelRegistry\n"
+            "\t};\n"
+            "}",
+            "\t\tmodel,\n"
+            "\t\tauthStorage,\n"
+            "\t\tmodelRegistry,\n"
+            "\t\tthinkingOverride\n"
+            "\t};\n"
+            "}",
+        ),
+        (
+            "\tconst { requestedModelId, modelSelectionChangedByHook, requestStreamTransportOverrides, expectedHarnessArtifact, pinnedHarnessId, nativeModelOwned, nativeSessionRuntime, modelConfigProvider, model, authStorage, modelRegistry } = modelSetup;",
+            "\tconst { requestedModelId, modelSelectionChangedByHook, requestStreamTransportOverrides, expectedHarnessArtifact, pinnedHarnessId, nativeModelOwned, nativeSessionRuntime, modelConfigProvider, model, authStorage, modelRegistry, thinkingOverride } = modelSetup;",
+        ),
+        (
+            "\tconst requestedThinkLevel = resolveInitialThinkLevel({\n"
+            "\t\trequested: params.thinkLevel,",
+            "\tconst routedThinking = thinkingOverride && params.thinkLevelOverride === void 0 ? thinkingOverride : params.thinkLevel;\n"
+            "\tconst requestedThinkLevel = resolveInitialThinkLevel({\n"
+            "\t\trequested: routedThinking,",
+        ),
+        (
+            "\tconst initialThinkLevel = modelSelectionChangedByHook ? resolveCandidateThinkingLevel({",
+            "\tconst initialThinkLevel = modelSelectionChangedByHook || routedThinking !== params.thinkLevel ? resolveCandidateThinkingLevel({",
+        ),
+    ],
+}
+
+PROFILES = {
+    "2026.9.3": {
+        "original_hashes": ORIGINAL_HASHES,
+        "patched_hashes": PATCHED_HASHES,
+        "transforms": PATCH_TRANSFORMS,
+    },
+    "2026.9.5": {
+        "original_hashes": OPENCLAW_2026_9_5_ORIGINAL_HASHES,
+        "patched_hashes": OPENCLAW_2026_9_5_PATCHED_HASHES,
+        "transforms": PATCH_TRANSFORMS_2026_9_5,
+    },
+}
+
 
 def compute_sha256(file_path: Path) -> str:
     """Compute hex sha256 digest of file."""
@@ -268,30 +439,42 @@ def resolve_target_dir(root_path: Path) -> Path:
     if not root_path.exists():
         raise FileNotFoundError(f"Target path does not exist: {root_path}")
 
-    # Check if files are directly in root_path
-    if all((root_path / fname).is_file() for fname in ORIGINAL_HASHES):
-        return root_path
+    for profile in PROFILES.values():
+        filenames = profile["original_hashes"]
+        if all((root_path / fname).is_file() for fname in filenames):
+            return root_path
 
-    # Check if files are in dist/ subdirectory
     dist_dir = root_path / "dist"
-    if dist_dir.is_dir() and all((dist_dir / fname).is_file() for fname in ORIGINAL_HASHES):
-        return dist_dir
+    if dist_dir.is_dir():
+        for profile in PROFILES.values():
+            filenames = profile["original_hashes"]
+            if all((dist_dir / fname).is_file() for fname in filenames):
+                return dist_dir
 
-    raise FileNotFoundError(
-        f"Could not find all required OpenClaw host files in {root_path} or {dist_dir}."
-    )
+    supported = ", ".join(PROFILES)
+    raise FileNotFoundError(f"Could not find a supported OpenClaw bundle in {root_path} or {dist_dir} (supported: {supported}).")
 
 
-def inspect_files(target_dir: Path):
+def profile_for_target(target_dir: Path):
+    matches = [profile for profile in PROFILES.values() if all((target_dir / fname).is_file() for fname in profile["original_hashes"])]
+    if len(matches) != 1:
+        raise FileNotFoundError(f"Could not identify one supported OpenClaw profile in {target_dir}.")
+    return matches[0]
+
+
+def inspect_files(target_dir: Path, profile=None):
     """Inspect all target files and return status dict."""
+    profile = profile or profile_for_target(target_dir)
+    original_hashes = profile["original_hashes"]
+    patched_hashes = profile["patched_hashes"]
     status = {}
-    for fname, orig_hash in ORIGINAL_HASHES.items():
+    for fname, orig_hash in original_hashes.items():
         fpath = target_dir / fname
         if not fpath.is_file():
             status[fname] = {"state": "missing", "path": fpath, "hash": None}
             continue
         current_hash = compute_sha256(fpath)
-        patched_hash = PATCHED_HASHES[fname]
+        patched_hash = patched_hashes[fname]
         if current_hash == orig_hash:
             state = "original"
         elif current_hash == patched_hash:
@@ -308,9 +491,9 @@ def inspect_files(target_dir: Path):
     return status
 
 
-def check_command(target_dir: Path) -> int:
+def check_command(target_dir: Path, profile) -> int:
     """Execute --check action."""
-    status = inspect_files(target_dir)
+    status = inspect_files(target_dir, profile)
     all_original = all(info["state"] == "original" for info in status.values())
     all_patched = all(info["state"] == "patched" for info in status.values())
 
@@ -320,20 +503,24 @@ def check_command(target_dir: Path) -> int:
         print(f"  {fname}: {info['state']} (hash: {info.get('current_hash', 'N/A')[:16]}...)")
     print("-" * 60)
 
+    version = next(version for version, candidate in PROFILES.items() if candidate is profile)
     if all_patched:
-        print("STATUS: PATCHED (All files match exact patched hashes)")
+        print(f"STATUS: PATCHED (OpenClaw {version}; all files match exact patched hashes)")
         return 0
     if all_original:
-        print("STATUS: UNPATCHED (All files match exact original OpenClaw 2026.9.3 hashes)")
+        print(f"STATUS: UNPATCHED (OpenClaw {version}; all files match exact original hashes)")
         return 0
 
     print("STATUS: MISMATCH / PARTIAL STATE (Refusing operation)", file=sys.stderr)
     return 1
 
 
-def apply_command(target_dir: Path) -> int:
+def apply_command(target_dir: Path, profile) -> int:
     """Execute --apply action with preflight, backup, and transactional write."""
-    status = inspect_files(target_dir)
+    status = inspect_files(target_dir, profile)
+    original_hashes = profile["original_hashes"]
+    patched_hashes = profile["patched_hashes"]
+    transforms_by_file = profile["transforms"]
 
     # 1. Idempotency check: if all already patched, succeed immediately
     if all(info["state"] == "patched" for info in status.values()):
@@ -362,7 +549,7 @@ def apply_command(target_dir: Path) -> int:
     if backup_dir.exists():
         # Validate existing backup
         backup_valid = True
-        for fname, orig_hash in ORIGINAL_HASHES.items():
+        for fname, orig_hash in original_hashes.items():
             bf = backup_dir / fname
             if not bf.is_file() or compute_sha256(bf) != orig_hash:
                 backup_valid = False
@@ -375,7 +562,7 @@ def apply_command(target_dir: Path) -> int:
         # Create dedicated backup directory and copy originals
         backup_dir.mkdir(parents=True, exist_ok=False)
         try:
-            for fname, orig_hash in ORIGINAL_HASHES.items():
+            for fname, orig_hash in original_hashes.items():
                 src = target_dir / fname
                 dst = backup_dir / fname
                 shutil.copy2(src, dst)
@@ -391,7 +578,7 @@ def apply_command(target_dir: Path) -> int:
     # 4. Prepare patched content in memory
     patched_contents = {}
     try:
-        for fname, transforms in PATCH_TRANSFORMS.items():
+        for fname, transforms in transforms_by_file.items():
             src_path = target_dir / fname
             with open(src_path, "r", encoding="utf-8") as f:
                 content = f.read()
@@ -404,7 +591,7 @@ def apply_command(target_dir: Path) -> int:
             # Pre-verify patched content hash
             content_bytes = content.encode("utf-8")
             actual_hash = hashlib.sha256(content_bytes).hexdigest()
-            expected_hash = PATCHED_HASHES[fname]
+            expected_hash = patched_hashes[fname]
             if actual_hash != expected_hash:
                 raise ValueError(
                     f"Patched content hash mismatch for {fname}: got {actual_hash}, expected {expected_hash}"
@@ -432,14 +619,14 @@ def apply_command(target_dir: Path) -> int:
             written_files.append(fname)
 
         # Post-write validation
-        for fname, expected_hash in PATCHED_HASHES.items():
+        for fname, expected_hash in patched_hashes.items():
             actual_hash = compute_sha256(target_dir / fname)
             if actual_hash != expected_hash:
                 raise IOError(f"Post-write validation failed for {fname}: got {actual_hash}")
 
     except Exception as e:
         print(f"ERROR during patch writing: {e}. Rolling back all modifications from backup...", file=sys.stderr)
-        for fname in ORIGINAL_HASHES:
+        for fname in original_hashes:
             src = backup_dir / fname
             dst = target_dir / fname
             if src.is_file():
@@ -451,9 +638,10 @@ def apply_command(target_dir: Path) -> int:
     return 0
 
 
-def restore_command(target_dir: Path) -> int:
+def restore_command(target_dir: Path, profile) -> int:
     """Execute --restore action to return all host files to exact original state."""
-    status = inspect_files(target_dir)
+    status = inspect_files(target_dir, profile)
+    original_hashes = profile["original_hashes"]
 
     # 1. Idempotency check: if all already original, succeed immediately
     if all(info["state"] == "original" for info in status.values()):
@@ -466,7 +654,7 @@ def restore_command(target_dir: Path) -> int:
         print(f"ERROR: Backup directory not found at {backup_dir}. Cannot restore safely.", file=sys.stderr)
         return 1
 
-    for fname, orig_hash in ORIGINAL_HASHES.items():
+    for fname, orig_hash in original_hashes.items():
         bf = backup_dir / fname
         if not bf.is_file() or compute_sha256(bf) != orig_hash:
             print(f"ERROR: Backup file {bf} is missing or corrupted. Refusing unsafe restore.", file=sys.stderr)
@@ -479,7 +667,7 @@ def restore_command(target_dir: Path) -> int:
 
     # Transactional restore
     try:
-        for fname, orig_hash in ORIGINAL_HASHES.items():
+        for fname, orig_hash in original_hashes.items():
             src = backup_dir / fname
             dst = target_dir / fname
             # Use atomic replace
@@ -492,7 +680,7 @@ def restore_command(target_dir: Path) -> int:
             os.replace(tmp_path, dst)
 
         # Validate restored files
-        for fname, orig_hash in ORIGINAL_HASHES.items():
+        for fname, orig_hash in original_hashes.items():
             actual = compute_sha256(target_dir / fname)
             if actual != orig_hash:
                 raise IOError(f"Restoration verification failed for {fname}: got {actual}, expected {orig_hash}")
@@ -501,13 +689,13 @@ def restore_command(target_dir: Path) -> int:
         print(f"ERROR during restore: {e}", file=sys.stderr)
         return 1
 
-    print("STATUS: SUCCESS. All host files successfully restored to exact original OpenClaw 2026.9.3 state.")
+    print("STATUS: SUCCESS. All host files successfully restored to their exact supported original state.")
     return 0
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="OpenClaw 2026.9.3 Compatibility Patcher for Model Router"
+        description="OpenClaw 2026.9.3/2026.9.5 Compatibility Patcher for Model Router"
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--check", action="store_true", help="Check host compatibility and patch status")
@@ -535,16 +723,17 @@ def main():
 
     try:
         target_dir = resolve_target_dir(target_path)
+        profile = profile_for_target(target_dir)
     except FileNotFoundError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 
     if args.check:
-        sys.exit(check_command(target_dir))
+        sys.exit(check_command(target_dir, profile))
     elif args.apply:
-        sys.exit(apply_command(target_dir))
+        sys.exit(apply_command(target_dir, profile))
     elif args.restore:
-        sys.exit(restore_command(target_dir))
+        sys.exit(restore_command(target_dir, profile))
 
 
 if __name__ == "__main__":

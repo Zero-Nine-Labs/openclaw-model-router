@@ -1,6 +1,6 @@
 {
   "name": "@zero-nine-labs/openclaw-model-router",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Luna classification and deterministic difficulty routing for OpenClaw",
   "type": "module",
   "license": "MIT",
@@ -21,7 +21,7 @@
     "test:compat": "node --test test/compat.test.js"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.16.0 <25 || >=26.1.0"
   },
   "openclaw": {
     "extensions": [
