@@ -1,0 +1,100 @@
+{
+  "trials": 12,
+  "validAssessments": 12,
+  "passedTrials": 11,
+  "acceptableProfiles": 11,
+  "cases": 12,
+  "casesPassingEveryRepeat": 11,
+  "casesWithIdenticalProfile": 12,
+  "latencyMs": {
+    "p50": 1878,
+    "p95": 4034,
+    "max": 4034
+  },
+  "errors": {},
+  "failures": [
+    {
+      "id": "patient-high-stakes",
+      "repeat": 1,
+      "failures": [
+        "profile:urgent_critical"
+      ],
+      "assessment": {
+        "complexity": 8,
+        "reasoning_depth": 8,
+        "ambiguity": 8,
+        "scope_clarity": 6,
+        "urgency": "urgent",
+        "urgency_explicit": true,
+        "tool_use": "none",
+        "multi_step": false,
+        "task_type": "chat",
+        "high_stakes": true,
+        "codebase_wide": false,
+        "long_context_reasoning": false,
+        "repeated_failures": false,
+        "continuation": false,
+        "output_size": "short",
+        "recommended_tier": "large"
+      },
+      "route": {
+        "tier": "large",
+        "model": "openai/gpt-6-astra",
+        "effort": "low",
+        "profile": "urgent_critical",
+        "reason": "high_stakes"
+      }
+    }
+  ],
+  "profilesByCase": {
+    "greeting": [
+      "simple"
+    ],
+    "rewrite": [
+      "simple"
+    ],
+    "simple-lookup": [
+      "simple"
+    ],
+    "research-comparison": [
+      "simple"
+    ],
+    "draft-email": [
+      "simple"
+    ],
+    "calendar-workflow": [
+      "routine_luna"
+    ],
+    "crm-workflow": [
+      "routine_luna"
+    ],
+    "bounded-code": [
+      "routine_luna"
+    ],
+    "patient-algorithm": [
+      "patient"
+    ],
+    "urgent-algorithm": [
+      "difficult"
+    ],
+    "architecture": [
+      "critical"
+    ],
+    "patient-high-stakes": [
+      "urgent_critical"
+    ]
+  },
+  "tokenUsage": {
+    "inputTokens": 36,
+    "outputTokens": 1239,
+    "cacheReadTokens": 12288,
+    "cacheWriteTokens": 497,
+    "totalTokens": 14060
+  },
+  "billedCostUsd": null,
+  "notes": [
+    "Labels were fixed before the run. Repetitions of the same case are correlated; this is not a population accuracy confidence estimate.",
+    "Acceptable route ranges are policy judgments, not proof of the selected model solving the task.",
+    "Host cost metadata is unavailable/zero without pricing; do not interpret it as free usage."
+  ]
+}

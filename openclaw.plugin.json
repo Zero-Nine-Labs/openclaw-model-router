@@ -1,0 +1,49 @@
+{
+  "id": "model-router",
+  "name": "Difficulty and urgency model router",
+  "version": "0.1.8",
+  "description": "Classify with Luna low; route model and effort using difficulty, urgency, scope and consequences.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enableEval": {
+        "type": "boolean",
+        "default": false
+      },
+      "agentIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": [
+          "main"
+        ]
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 15000,
+        "default": 8000
+      },
+      "maxPromptChars": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 64000,
+        "default": 24000
+      },
+      "sessionTtlMs": {
+        "type": "integer",
+        "minimum": 60000,
+        "maximum": 86400000,
+        "default": 1800000
+      },
+      "maxSessions": {
+        "type": "integer",
+        "minimum": 10,
+        "maximum": 5000,
+        "default": 500
+      }
+    }
+  }
+}
