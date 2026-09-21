@@ -1,8 +1,9 @@
 import { classify } from './jev.js';
-import { chooseRoute } from './decision.js';
+import { chooseRoute, readModels } from './decision.js';
 
 export function registerEvaluation(api, { classifyRequest = classify } = {}) {
   if (api.pluginConfig?.enableEval !== true) return;
+  const models = readModels(api.pluginConfig);
   api.registerGatewayMethod('model-router.evaluate', async ({ params, respond }) => {
     const started = Date.now();
     const { prompt, recent = '', facts = {} } = params ?? {};
@@ -16,7 +17,7 @@ export function registerEvaluation(api, { classifyRequest = classify } = {}) {
     }
     try {
       const result = await classifyRequest({ prompt, recent, timeoutMs: api.pluginConfig?.timeoutMs ?? 8000 });
-      respond(true, { ok: true, assessment: result.assessment, route: chooseRoute(result.assessment, facts), usage: result.usage, latencyMs: Date.now() - started });
+      respond(true, { ok: true, assessment: result.assessment, route: chooseRoute(result.assessment, facts, models), usage: result.usage, latencyMs: Date.now() - started });
     } catch (error) {
       const kind = ['TimeoutError', 'AbortError', 'SyntaxError'].includes(error?.name) ? error.name : 'CLASSIFIER_ERROR';
       respond(true, { ok: false, error: kind, latencyMs: Date.now() - started });

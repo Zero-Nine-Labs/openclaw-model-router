@@ -1,32 +1,21 @@
-# Evaluation and limits
+# Verification and limitations
 
-Version `0.2.4-jev-experimental` merges the deployed JEV runtime and task-context policy into the shared repository while retaining its 2026.9.5 compatibility profile. The core `index.js`, `jev.js`, `decision.js` and `evaluate.js` match the verified deployed 0.2.3 implementation. Package metadata, documentation and the separate notice patch's profile registration differ.
+The public repository contains synthetic evaluation cases and generic model references. It does not distribute an operator's production transcripts, routing configuration, account identifiers, host fixtures or production measurements.
 
-## Current evidence
+## Automated checks
 
-- 25 portable tests pass, including typed JEV response validation, malformed output, timeouts, unresolved references, manual selections, concurrent sessions, fallback candidates and simple/complex/distant-context routing with 180,000-token metadata.
-- 14 thinking-extension tests and 19 fallback-notice tests pass against pinned original OpenClaw 2026.9.3 fixtures. They exercise patch/restore, hash rejection, explicit choices, routed effort and true versus false fallback notices. Fixtures are not distributed.
-- The retained OpenClaw 2026.9.5 thinking profile was contributed before this merge. It has not been revalidated against 2026.9.5 fixtures here. The optional fallback-notice repair supports only its pinned 2026.9.3 bundle.
-- A frozen live JEV test of eight synthetic cases, repeated three times, matched all 24 expected route labels with no classifier errors. Mean latency was 402 ms. Simple requests stayed on Luna; distant-history and dispersed-document tasks triggered context escalation.
-- A separate alternating old/new classifier check found one timeout in 24 calls with the old rubric and none in 24 with the revised rubric. Mean latency was 686 ms and 461 ms respectively. Small, correlated samples cannot establish future reliability.
-- Seven isolated deployed gateway checks all completed without tools or channel delivery. Four selected Luna and three Sol. One classifier timeout correctly used Sol low; a subsequent arithmetic check recovered to Luna. The verifier retained the original expected-model failure.
+`npm test` exercises the classifier parser and transport, task-based routing, configurable model tiers, manual preferences, concurrent runs, fallback preservation, classifier errors and long-context cases. The classifier transport tests use a local stub; they do not prove access to an external model or account.
 
-Those gateway checks seeded session context metadata to 180,000 through the public session API. Classification, routing and model execution were real, but they were not literal 180k-token transcripts. The runtime was healthy with matching installed hashes and no plugin errors.
+The compatibility and fallback-notice suites exercise exact pinned runtime transformations, rejection of mismatched input and restoration. They require original OpenClaw runtime fixtures supplied by the operator. Missing fixtures are errors, not skipped successes. The existing 2026.9.5 thinking-hook profile is preserved; the optional fallback-notice repair is limited to the pinned 2026.9.3 build.
 
-## Production comparison
+## Classifier evaluation
 
-The earlier 24-route audit contained 12 Luna and 12 Sol selections, with no classifier errors. Five low-complexity Sol decisions had an ordinary guard and escalated solely on conversation length. Replaying those individual decisions under the revised policy gives 17 Luna and 7 Sol; that is counterfactual, not observed savings. Historical continuation state was not invented.
+`evals/cases.json` is a synthetic fixture set for the current JEV schema. Its expected profiles test routing intent, not answer quality. Large `inputTokens` values are routing metadata, not literal long transcripts. Run these cases against your own account with `evals/run.py`; the runner never executes the prompt as an agent task.
 
-At the recorded follow-up, one organic production turn selected Luna and completed without classifier error. More production traffic is needed to compare a representative post-change cohort. Private transcripts, session identifiers and raw production logs are not published here.
+`evals/summarize.py` reports classifier costs only when supplied by the classifier. Failed calls can have unknown costs. Execution cost, task success and savings require separate measurements.
 
-## Historical Luna evidence
+## Limits
 
-`evals/legacy/api-low-normal.jsonl` contains the earlier synthetic 12-call Luna-classifier sample: 12 valid assessments and 11 expected-route matches, nearest-rank p50 1,878 ms and maximum 4,034 ms. It predates JEV and later policy changes; it is not a current accuracy score.
+The strong-reference threshold is empirical. Ambiguous follow-ups can still be misclassified. Continuations of an escalated task retain at least the medium tier until a new task is identified. Model/account availability must be enforced by the host's configured fallback chain; the stock host has no exact-account preselection capability for this local plugin.
 
-## Remaining limitations
-
-Routing labels do not establish answer quality, model optimality or billed savings. Classifier cost is reported when available; execution dollar cost is not supplied by the hook. Failed calls may have unknown cost. Subscription usage and per-token API billing are different measures.
-
-The strong-reference threshold is empirical. Ambiguous follow-ups can still be misclassified. A continuation of an already escalated task retains Sol even when its current score is low.
-
-Exact-account availability preflight is not implemented. The optional notice repair corrects bookkeeping after successful routing; it does not make unavailable models callable. Host API and failure-observation work remains separate and must preserve account identity, cooldown expiry, native runtime observations and fallback behavior.
+Validate the selected model and reasoning effort, fallback behavior and completed task outcome in isolated sessions before using a new configuration. No production accuracy or savings claim is made by these fixtures.

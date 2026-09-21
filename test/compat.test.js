@@ -320,7 +320,7 @@ describe('Standalone Logic Verification (Extracted from Patched Artifacts)', () 
 
     // Case 1: opts.model and opts.thinkingOnce produce explicit flags
     const r1 = contextObj.buildAttempt({
-      opts: { model: 'openai/gpt-5.6-luna', thinkingOnce: 'high' },
+      opts: { model: 'openai/small-model', thinkingOnce: 'high' },
       resolvedThinkLevel: 'high',
       isFallbackRetry: true,
       runContext: {},

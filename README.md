@@ -1,6 +1,6 @@
 # OpenClaw model router
 
-Choose an execution model and reasoning effort for each request. JEV 1.13 classifies the current task through OpenRouter's Decisions API; deterministic rules select Luna, Sol or Astra. Version `0.2.4-jev-experimental` combines the deployed JEV router with this repository's OpenClaw 2026.9.5 compatibility support.
+Choose an execution model and reasoning effort for each request. JEV 1.13 classifies the current task through OpenRouter's Decisions API; deterministic rules choose a small, medium or large model tier. You configure the provider/model reference for each tier. This public distribution uses synthetic examples and contains no operator-specific routing defaults.
 
 This is experimental. Classification can be wrong, and route-label agreement does not prove answer quality or production savings. See [EVIDENCE.md](EVIDENCE.md).
 
@@ -12,25 +12,25 @@ This is experimental. Classification can be wrong, and route-label agreement doe
 
 | Work | Default route |
 | --- | --- |
-| Clear simple work, complexity up to 30 | Luna medium |
-| Routine work up to 60 | Luna high |
-| General work up to 85, unless urgent | Luna high |
-| Bounded software up to 85, with permission to wait | Luna max |
-| Unclear requests | Sol low |
-| Consequential actions, repeated failures, or substantial context dependence | At least Sol medium |
-| Harder work | Sol medium |
-| Clear system software at 80+, or bounded software at 90+ | Astra medium; low when urgent |
-| Attachments | Luna high without text classification |
-| Text exceeding 24,000 characters | Sol medium without classification |
-| Classifier errors or eight-second timeout | Sol low |
+| Clear simple work, complexity up to 30 | small model medium |
+| Routine work up to 60 | small model high |
+| General work up to 85, unless urgent | small model high |
+| Bounded software up to 85, with permission to wait | small model max |
+| Unclear requests | medium model low |
+| Consequential actions, repeated failures, or substantial context dependence | At least medium model medium |
+| Harder work | medium model medium |
+| Clear system software at 80+, or bounded software at 90+ | large model medium; low when urgent |
+| Attachments | small model high without text classification |
+| Text exceeding 24,000 characters | medium model medium without classification |
+| Classifier errors or eight-second timeout | medium model low |
 
-Rule precedence matters. Total conversation size alone does not force Sol: a simple request in a 150k+ token thread can use Luna. Work requiring distant conversation details absent from the recent exchange still escalates. Continuations of an already escalated task retain at least Sol until a new task is identified.
+Rule precedence matters. Total conversation size alone does not force escalation: a simple request in a 150k+ token thread can use the small tier. Work requiring distant conversation details absent from the recent exchange still escalates. Continuations of an already escalated task retain at least the medium tier until a new task is identified.
 
 Explicit model pins bypass routing. Stored thinking preferences preserve effort while allowing model selection. Classification runs once per run, and retries preserve the host's fallback candidate. The plugin does not grade answers or automatically retry every poor answer.
 
 The default agent is `main`; heartbeat, cron and subagent triggers are excluded. Conversation excerpts are bounded in memory and expire after 30 minutes. Route logs omit prompts and responses, but include selected model, reason, complexity, context size, classifier latency/usage/cost and completion events. The host's own logs may contain additional data.
 
-## Install or upgrade from the Luna classifier
+## Install or upgrade
 
 Requires the Node version supported by your OpenClaw installation, Python 3, model access and an OpenRouter API key. There are no npm dependencies. The key must be available as `OPENROUTER_API_KEY` in the gateway process environment. The plugin sends the current request and bounded recent exchange directly to OpenRouter; the old host-completion classifier configuration no longer applies.
 
@@ -56,11 +56,18 @@ Enable the plugin under `plugins.entries["model-router"]`:
 {
   "enabled": true,
   "hooks": { "allowConversationAccess": true },
-  "config": { "agentIds": ["main"] }
+  "config": {
+    "agentIds": ["main"],
+    "models": {
+      "small": "your-provider/your-small-model",
+      "medium": "your-provider/your-medium-model",
+      "large": "your-provider/your-large-model"
+    }
+  }
 }
 ```
 
-The execution models must be in the agent allowlist. Adapt model IDs in `decision.js` to your account, and configure execution fallback through OpenClaw. Old `llm` completion permissions are unnecessary for the direct JEV classifier. Validate configuration, restart, then verify model, effort and fallback in isolated sessions with delivery disabled. Fast mode remains a host setting.
+Replace all three example references with models available to your account and included in the agent allowlist. The `models` configuration is required; missing or malformed references stop plugin initialization. Configure execution fallback through OpenClaw. When upgrading from an earlier version, add this configuration before enabling the new code. Old `llm` completion permissions are unnecessary for the direct JEV classifier. Validate configuration, restart, then verify model, effort and fallback in isolated sessions with delivery disabled. Fast mode remains a host setting.
 
 On the pinned 2026.9.3 build, an additional optional repair prevents false "selected model unavailable" notices after successful intentional routing:
 
@@ -88,7 +95,7 @@ python3 evals/run.py --cases evals/cases.json --output results.jsonl --repeats 3
 python3 evals/summarize.py results.jsonl --output summary.json
 ```
 
-Disable `enableEval` and restart afterward. Current cases use JEV's schema and include 180k-token routing facts. Historical Luna cases and measurements remain under `evals/legacy`; they are not current acceptance criteria. Add separate outcome checks for actual task execution.
+Disable `enableEval` and restart afterward. Current cases use JEV's schema and include 180k-token routing facts. Evaluation fixtures contain synthetic tasks only. Operator-specific historical evaluations are not part of this public distribution. Add separate outcome checks for actual task execution.
 
 ## Disable or restore
 
@@ -100,3 +107,7 @@ python3 compat.py --restore /absolute/path/to/openclaw
 ```
 
 Restart after restoration. MIT licensed. Credentials, private session logs and host fixtures are excluded from the repository.
+
+## Public distribution
+
+Keep credentials, account configuration, real conversations, operational reports and host fixtures outside this repository. The checked-in examples and tests use generic model tiers. The MIT license and contributor attribution are preserved. Existing Git history is retained; this update anonymizes the current distribution, not earlier commits or GitHub attribution.
