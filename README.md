@@ -100,3 +100,5 @@ python3 compat.py --restore /absolute/path/to/openclaw
 ```
 
 Restart after restoration. MIT licensed. Credentials, private session logs and host fixtures are excluded from the repository.
+
+The draft router-side availability consumer and required host contract are described in [HOST-AVAILABILITY.md](HOST-AVAILABILITY.md). Stock OpenClaw does not yet provide this capability; this draft does not complete ZN-878.

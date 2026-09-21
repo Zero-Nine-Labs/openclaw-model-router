@@ -81,13 +81,34 @@ export function createRouter(api, { now = Date.now, classifyRequest = classify }
         selected = { ...profiles.routine, profile: 'routine', reason: failure };
       }
     }
+    const classifierMs = now() - started;
+    const availabilityStarted = now();
+    const [providerOverride, ...modelParts] = selected.model.split('/');
+    const modelOverride = modelParts.join('/');
+    let availability = { kind: 'unknown', reason: 'unsupported_host' };
+    if (event.checkModelAvailability) {
+      try {
+        const [result] = await event.checkModelAvailability([{ provider: providerOverride, model: modelOverride }]);
+        if (result?.provider === providerOverride && result.model === modelOverride && ['available', 'unavailable', 'unknown'].includes(result.kind)) {
+          availability = {
+            kind: result.kind,
+            reason: ['model_unavailable', 'cooldown', 'auth_failed', 'missing_auth', 'unobserved', 'scope_closed'].includes(result.reason) ? result.reason : undefined,
+            retryAt: Number.isFinite(result.retryAt) ? result.retryAt : undefined,
+          };
+        }
+      } catch {
+        availability = { kind: 'unknown', reason: 'check_failed' };
+      }
+    }
+    const fallbackRequested = availability.kind === 'unavailable';
     const continuing = previous && (assessment?.continuation || !assessment);
     const taskId = continuing ? previous.taskId : ctx.runId;
     const classifierCostUsd = Number.isFinite(usage?.costUsd) && usage.costUsd > 0 ? usage.costUsd : null;
     remember(key, { taskId, route: selected, runId: ctx.runId, failures: continuing ? previous.failures : 0, request: event.prompt.slice(0, 2500), recent: `User: ${event.prompt.slice(0, 2500)}`, inputTokens: previous?.inputTokens ?? 0 });
-    log('route', { runId: ctx.runId, taskId, session: logKey(key), profile: selected.profile, model: selected.model, effort: event.thinkingExplicit ? null : entry?.thinkingLevel ?? selected.effort, effortSource: event.thinkingExplicit || entry?.thinkingLevel ? 'manual' : 'router', reason: selected.reason, complexity: assessment?.complexity, taskFamily: assessment?.family, urgency: assessment?.urgency, clarity: assessment?.clarity, referenceResolution: assessment?.reference_resolution, referenceProbability: assessment?.reference_probability, guard: assessment?.guard, inputTokens, classifierMs: now() - started, classifierCostUsd, classifierUsage: usage, classifierErrorCode });
-    const [providerOverride, ...modelParts] = selected.model.split('/');
-    return { providerOverride, modelOverride: modelParts.join('/'), thinkingOverride: selected.effort };
+    log('route', { runId: ctx.runId, taskId, session: logKey(key), profile: selected.profile, model: fallbackRequested ? null : selected.model, preferredModel: selected.model, availability: availability.kind, availabilityReason: availability.reason, availabilityRetryAt: availability.retryAt, fallbackRequested, effort: event.thinkingExplicit ? null : entry?.thinkingLevel ?? selected.effort, effortSource: event.thinkingExplicit || entry?.thinkingLevel ? 'manual' : 'router', reason: selected.reason, complexity: assessment?.complexity, taskFamily: assessment?.family, urgency: assessment?.urgency, clarity: assessment?.clarity, referenceResolution: assessment?.reference_resolution, referenceProbability: assessment?.reference_probability, guard: assessment?.guard, inputTokens, classifierMs, availabilityMs: now() - availabilityStarted, classifierCostUsd, classifierUsage: usage, classifierErrorCode });
+    return fallbackRequested
+      ? { modelUnavailable: { provider: providerOverride, model: modelOverride, reason: availability.reason ?? 'model_unavailable' }, thinkingOverride: selected.effort }
+      : { providerOverride, modelOverride, thinkingOverride: selected.effort };
   }
   function llmOutput(event, ctx) {
     const key = keyFor(ctx), state = sessions.get(key);

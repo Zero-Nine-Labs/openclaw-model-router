@@ -153,3 +153,63 @@ test('150k-token sessions route the current task and retain diagnostic fields', 
     assert.deepEqual(route.classifierUsage, usage);
   }
 });
+
+test('unavailable preferred model requests host fallback without selecting it or reclassifying', async () => {
+  let classifications = 0;
+  let checks = 0;
+  const { router, logs } = harness({ classifier: async () => { classifications++; return { assessment: assessment({ guard: 'consequential' }) }; } });
+  const ctx = { ...context(), modelProviderId: 'openai', modelId: 'gpt-5.6-sol' };
+  const checked = { ...event, checkModelAvailability: async candidates => {
+    checks++;
+    assert.deepEqual(candidates, [{ provider: 'openai', model: 'gpt-5.6-sol' }]);
+    return [{ ...candidates[0], kind: 'unavailable', reason: 'cooldown', retryAt: 12345 }];
+  } };
+  const first = await router.beforeModel(checked, ctx);
+  assert.equal(first.modelOverride, undefined);
+  assert.deepEqual(first.modelUnavailable, { provider: 'openai', model: 'gpt-5.6-sol', reason: 'cooldown' });
+  assert.deepEqual(await router.beforeModel({ ...checked, isFallbackRetry: true }, { ...ctx, modelProviderId: 'openai-api', modelId: 'gpt-5.6-luna' }), { thinkingOverride: 'medium' });
+  assert.equal(classifications, 1);
+  assert.equal(checks, 1);
+  const route = JSON.parse(logs.find(line => line.startsWith('[model-router] ')).slice(15));
+  assert.equal(route.model, null);
+  assert.equal(route.preferredModel, 'openai/gpt-5.6-sol');
+  assert.equal(route.availability, 'unavailable');
+  assert.equal(route.availabilityReason, 'cooldown');
+  assert.equal(route.fallbackRequested, true);
+});
+
+test('availability is checked freshly for new runs and never overrides manual pins', async () => {
+  let available = false;
+  let checks = 0;
+  const checked = { ...event, checkModelAvailability: async candidates => {
+    checks++;
+    return candidates.map(candidate => ({ ...candidate, kind: available ? 'available' : 'unavailable', reason: 'model_unavailable' }));
+  } };
+  const { router } = harness();
+  assert.equal((await router.beforeModel(checked, context('a'))).modelOverride, undefined);
+  available = true;
+  assert.equal((await router.beforeModel(checked, context('b'))).modelOverride, 'gpt-5.6-luna');
+  const pinned = harness({ entry: { modelOverride: 'gpt-5.6-sol', modelOverrideSource: 'user' } });
+  assert.equal(await pinned.router.beforeModel(checked, context()), undefined);
+  assert.equal(checks, 2);
+});
+
+test('unknown availability preserves routing and availability failures never leak raw errors', async () => {
+  for (const checkModelAvailability of [
+    async candidates => candidates.map(candidate => ({ ...candidate, kind: 'unknown', reason: 'unobserved' })),
+    async () => { throw Error('secret account credentials'); },
+  ]) {
+    const { router, logs } = harness();
+    assert.equal((await router.beforeModel({ ...event, checkModelAvailability }, context())).modelOverride, 'gpt-5.6-luna');
+    assert(!logs.join('').includes('secret account credentials'));
+  }
+});
+
+test('availability latency is measured separately from classifier latency', async () => {
+  let clock = 100;
+  const { router, logs } = harness({ now: () => clock, classifier: async () => { clock += 10; return { assessment: assessment() }; } });
+  await router.beforeModel({ ...event, checkModelAvailability: async candidates => { clock += 1000; return candidates.map(candidate => ({ ...candidate, kind: 'available' })); } }, context());
+  const route = JSON.parse(logs[0].slice(15));
+  assert.equal(route.classifierMs, 10);
+  assert.equal(route.availabilityMs, 1000);
+});
