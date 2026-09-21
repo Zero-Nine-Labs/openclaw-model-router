@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { classify } from './classifier.js';
-import { chooseRoute, profiles } from './policy.js';
+import { classify } from './jev.js';
+import { chooseRoute, profiles } from './decision.js';
 import { registerEvaluation } from './evaluate.js';
 
 const defaults = { agentIds: ['main'], timeoutMs: 8000, maxPromptChars: 24000, sessionTtlMs: 1800000, maxSessions: 500 };
@@ -56,6 +56,7 @@ export function createRouter(api, { now = Date.now, classifyRequest = classify }
   async function route(event, ctx, key, entry) {
     const started = now();
     const previous = sessions.get(key);
+    const inputTokens = previous?.inputTokens ?? entry?.inputTokens ?? 0;
     let assessment;
     let usage;
     let selected;
@@ -66,12 +67,12 @@ export function createRouter(api, { now = Date.now, classifyRequest = classify }
         : { ...profiles.difficult, profile: 'difficult', reason: 'classifier_input_limit' };
     } else {
       try {
-        const result = await classifyRequest({ prompt: event.prompt, recent: previous?.recent ?? '', complete: args => api.runtime.llm.complete(args), agentId: ctx.agentId, timeoutMs: config.timeoutMs });
+        const result = await classifyRequest({ prompt: event.prompt, recent: previous?.recent ?? '', timeoutMs: config.timeoutMs });
         assessment = result.assessment;
         usage = result.usage;
-        selected = chooseRoute(assessment, { inputTokens: previous?.inputTokens ?? entry?.inputTokens ?? 0, failures: assessment.continuation ? previous?.failures ?? 0 : 0, previousTier: assessment.continuation ? previous?.route.tier : undefined });
+        selected = chooseRoute(assessment, { failures: assessment.continuation ? previous?.failures ?? 0 : 0, previousTier: assessment.continuation ? previous?.route.tier : undefined });
         const effortRank = ['low', 'medium', 'high', 'max'];
-        if (assessment.continuation && !assessment.urgency_explicit && previous && selected.tier === previous.route.tier && effortRank.indexOf(selected.effort) < effortRank.indexOf(previous.route.effort)) {
+        if (assessment.clarity === 'clear' && assessment.continuation && !assessment.timing_explicit && previous && selected.tier === previous.route.tier && effortRank.indexOf(selected.effort) < effortRank.indexOf(previous.route.effort)) {
           selected = { ...previous.route, reason: 'retain_task_profile' };
         }
       } catch (error) {
@@ -84,7 +85,7 @@ export function createRouter(api, { now = Date.now, classifyRequest = classify }
     const taskId = continuing ? previous.taskId : ctx.runId;
     const classifierCostUsd = Number.isFinite(usage?.costUsd) && usage.costUsd > 0 ? usage.costUsd : null;
     remember(key, { taskId, route: selected, runId: ctx.runId, failures: continuing ? previous.failures : 0, request: event.prompt.slice(0, 2500), recent: `User: ${event.prompt.slice(0, 2500)}`, inputTokens: previous?.inputTokens ?? 0 });
-    log('route', { runId: ctx.runId, taskId, session: logKey(key), profile: selected.profile, model: selected.model, effort: event.thinkingExplicit ? null : entry?.thinkingLevel ?? selected.effort, effortSource: event.thinkingExplicit || entry?.thinkingLevel ? 'manual' : 'router', reason: selected.reason, complexity: assessment?.complexity, taskType: assessment?.task_type, urgency: assessment?.urgency, scopeClarity: assessment?.scope_clarity, classifierMs: now() - started, classifierCostUsd, classifierUsage: usage, classifierErrorCode });
+    log('route', { runId: ctx.runId, taskId, session: logKey(key), profile: selected.profile, model: selected.model, effort: event.thinkingExplicit ? null : entry?.thinkingLevel ?? selected.effort, effortSource: event.thinkingExplicit || entry?.thinkingLevel ? 'manual' : 'router', reason: selected.reason, complexity: assessment?.complexity, taskFamily: assessment?.family, urgency: assessment?.urgency, clarity: assessment?.clarity, referenceResolution: assessment?.reference_resolution, referenceProbability: assessment?.reference_probability, guard: assessment?.guard, inputTokens, classifierMs: now() - started, classifierCostUsd, classifierUsage: usage, classifierErrorCode });
     const [providerOverride, ...modelParts] = selected.model.split('/');
     return { providerOverride, modelOverride: modelParts.join('/'), thinkingOverride: selected.effort };
   }

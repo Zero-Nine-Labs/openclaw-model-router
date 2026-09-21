@@ -1,44 +1,38 @@
 # OpenClaw model router
 
-Choose a model and reasoning effort for each request. A small classifier assesses the work, then deterministic rules choose Luna, Sol or Astra. The policy aims to reduce unnecessary use of larger models.
+Choose an execution model and reasoning effort for each request. JEV 1.13 classifies the current task through OpenRouter's Decisions API; deterministic rules select Luna, Sol or Astra. Version `0.2.4-jev-experimental` combines the deployed JEV router with this repository's OpenClaw 2026.9.5 compatibility support.
 
-This is an experimental, version-specific integration. Routed answers can need correction. These thresholds do not establish a production savings percentage or the best model for every task.
+This is experimental. Classification can be wrong, and route-label agreement does not prove answer quality or production savings. See [EVIDENCE.md](EVIDENCE.md).
 
 ## How it works
 
-1. Luna at low reasoning effort classifies the current request and a bounded excerpt from the previous turn.
-2. The plugin validates its JSON assessment of difficulty, ambiguity, urgency, task type and other factors.
-3. Rules in [policy.js](policy.js) choose the execution model and effort.
-4. OpenClaw executes the request. The plugin records routing metadata, usage and completion events.
+[jev.js](jev.js) validates typed decisions for complexity, clarity, reference resolution, work family, escalation conditions, urgency, explicit timing and continuation. Complexity is an ordinal score from 0 to 100, not a probability of success. Strong unresolved-reference evidence can override a clear assessment at a native score of 0.95; that threshold is empirical, not calibrated confidence.
+
+[decision.js](decision.js) applies these rules:
 
 | Work | Default route |
 | --- | --- |
-| Everyday answers, lookups, research and drafting | Luna medium |
-| Bounded coding and routine multi-step writes | Luna high |
-| Difficult but clear work with explicit permission to wait | Luna can use max effort |
-| Harder or ambiguous work, high stakes, large context or repeated failures | Sol, usually medium |
-| Very complex coding/debugging with score 9+, or architecture with score 8+ | Astra medium, or low when urgent |
-| Attachment passed to the hook | Luna high without text classification |
+| Clear simple work, complexity up to 30 | Luna medium |
+| Routine work up to 60 | Luna high |
+| General work up to 85, unless urgent | Luna high |
+| Bounded software up to 85, with permission to wait | Luna max |
+| Unclear requests | Sol low |
+| Consequential actions, repeated failures, or substantial context dependence | At least Sol medium |
+| Harder work | Sol medium |
+| Clear system software at 80+, or bounded software at 90+ | Astra medium; low when urgent |
+| Attachments | Luna high without text classification |
 | Text exceeding 24,000 characters | Sol medium without classification |
-| Classifier failure or eight-second timeout | Sol low |
+| Classifier errors or eight-second timeout | Sol low |
 
-Rules have precedence, so this table is a guide. Model names live in `defaultModels` in `policy.js`; classifier selection lives in [classifier.js](classifier.js). Urgency can change effort or model, but more reasoning on a smaller model is not proven equivalent to a larger one.
+Rule precedence matters. Total conversation size alone does not force Sol: a simple request in a 150k+ token thread can use Luna. Work requiring distant conversation details absent from the recent exchange still escalates. Continuations of an already escalated task retain at least Sol until a new task is identified.
 
-Explicit model pins bypass routing. Stored thinking preferences retain the selected effort while allowing model routing. The plugin classifies once per run and preserves OpenClaw's provider fallback candidate. It does not grade the final answer or automatically retry every poor answer. Failure signals and later requests can affect subsequent routing.
+Explicit model pins bypass routing. Stored thinking preferences preserve effort while allowing model selection. Classification runs once per run, and retries preserve the host's fallback candidate. The plugin does not grade answers or automatically retry every poor answer.
 
-The default agent is `main`. Heartbeat, cron and subagent trigger values are excluded. Conversation excerpts are held in bounded process memory with a 30-minute expiry. Router logs omit prompts and responses, but contain usage and identifiers; review your host's other logs separately.
+The default agent is `main`; heartbeat, cron and subagent triggers are excluded. Conversation excerpts are bounded in memory and expire after 30 minutes. Route logs omit prompts and responses, but include selected model, reason, complexity, context size, classifier latency/usage/cost and completion events. The host's own logs may contain additional data.
 
-## Compatibility and prerequisites
+## Install or upgrade from the Luna classifier
 
-The compatibility patcher supports the exact OpenClaw 2026.9.3 and 2026.9.5 bundles. Current OpenClaw releases require Node 24.16+ (or Node 26.1+); the patcher also needs Python 3. Access to the configured models and the host's direct-completion API is required. This repository does not supply model access or credentials.
-
-The inspected OpenClaw build lacks a public dynamic thinking override. [compat.py](compat.py) patches exact, hash-pinned runtime files for the supported releases. **Run its check before applying it.** A different build must receive a new compatibility review. Do not bypass hash checks. See [COMPATIBILITY.md](COMPATIBILITY.md) for the contract and rollback.
-
-The default classifier is `openai-api/gpt-5.6-luna`. Match the provider alias in `classifier.js` and the allowed-model configuration to your installation. Also adapt the execution model IDs in `policy.js` to models you can access, then evaluate the resulting policy.
-
-## Install
-
-Clone this repository and run the portable tests. There are no npm dependencies.
+Requires the Node version supported by your OpenClaw installation, Python 3, model access and an OpenRouter API key. There are no npm dependencies. The key must be available as `OPENROUTER_API_KEY` in the gateway process environment. The plugin sends the current request and bounded recent exchange directly to OpenRouter; the old host-completion classifier configuration no longer applies.
 
 ```sh
 git clone https://github.com/Zero-Nine-Labs/openclaw-model-router.git
@@ -47,59 +41,62 @@ npm test
 python3 compat.py --check /absolute/path/to/openclaw
 ```
 
-Only if the check recognises your runtime, apply the extension and install the plugin:
+Only apply the compatibility extension if the check recognizes your exact runtime:
 
 ```sh
 python3 compat.py --apply /absolute/path/to/openclaw
 openclaw plugins install --link --force --accept-capabilities /absolute/path/to/openclaw-model-router
 ```
 
-Enable the plugin and its completion permissions under `plugins.entries["model-router"]` in your OpenClaw configuration:
+The thinking extension has exact profiles for OpenClaw 2026.9.3 and 2026.9.5. Preserve your configuration and runtime backups, and never bypass hash checks. [COMPATIBILITY.md](COMPATIBILITY.md) explains the extension and rollback.
+
+Enable the plugin under `plugins.entries["model-router"]`:
 
 ```json
 {
   "enabled": true,
   "hooks": { "allowConversationAccess": true },
-  "llm": {
-    "allowAgentIdOverride": true,
-    "allowModelOverride": true,
-    "allowedModels": ["openai-api/gpt-5.6-luna"],
-    "allowedCompletionModels": ["openai-api/gpt-5.6-luna"]
-  },
   "config": { "agentIds": ["main"] }
 }
 ```
 
-The execution models must also be in your agent's model allowlist. Configure provider fallback through OpenClaw. Validate configuration, restart the gateway and verify model selection, thinking preferences and fallback in isolated sessions with delivery disabled before enabling it for normal work.
+The execution models must be in the agent allowlist. Adapt model IDs in `decision.js` to your account, and configure execution fallback through OpenClaw. Old `llm` completion permissions are unnecessary for the direct JEV classifier. Validate configuration, restart, then verify model, effort and fallback in isolated sessions with delivery disabled. Fast mode remains a host setting.
 
-Fast mode is a host setting, not enabled by this plugin. Measure latency in your own environment.
+On the pinned 2026.9.3 build, an additional optional repair prevents false "selected model unavailable" notices after successful intentional routing:
+
+```sh
+python3 fallback-notice-compat.py --check /absolute/path/to/openclaw
+python3 fallback-notice-compat.py --apply /absolute/path/to/openclaw
+```
+
+This separate repair is not verified for 2026.9.5 and refuses other runtime bundles. It preserves genuine fallback notices. Exact-account availability preflight remains unimplemented; the host's configured execution fallback is still required.
 
 ## Test and evaluate
 
 ```sh
 npm test
-OPENCLAW_ROUTER_FIXTURES=/path/to/pinned/originals npm run test:compat
+OPENCLAW_ROUTER_FIXTURES=/path/to/original-thinking-files npm run test:compat
+OPENCLAW_FALLBACK_FIXTURES=/path/to/original-fallback-file npm run test:fallback
 ```
 
-The first command runs 18 portable policy/plugin tests. The second runs 14 compatibility tests against the original runtime files for the matching profile identified in `compat.py`. Obtain those files from your matching installation or its validated compatibility backup. They are not distributed here. A missing fixture directory is an error, not a skipped success.
+Portable tests cover JEV parsing and transport, routing, manual choices, concurrent sessions, retries and long-context cases. The two compatibility suites need validated original 2026.9.3 runtime fixtures, which are not distributed here. Missing fixtures are errors, not skipped successes. The 2026.9.5 profile is preserved from the earlier contribution; it was not revalidated against 2026.9.5 runtime fixtures in this merge.
 
-The `evals` directory contains synthetic classifier cases and a runner. Historical expected labels predate the current policy and are preserved for comparison; do not treat them as current acceptance criteria. The medical and production examples are invented classification tests, not personal records or instructions to execute.
-
-For classifier-only testing, temporarily enable `config.enableEval`, restart the gateway and run the following on the host. The RPC requires `operator.admin` and does not execute the case requests.
+For classifier-only testing, temporarily set `config.enableEval` to `true` and restart. The authenticated RPC requires `operator.admin` and never executes case prompts:
 
 ```sh
 python3 evals/run.py --cases evals/cases.json --output results.jsonl --repeats 3 --workers 2
 python3 evals/summarize.py results.jsonl --output summary.json
 ```
 
-Disable `enableEval` and restart afterward. Add separate task-outcome checks: a plausible classification does not prove a useful answer. See [EVIDENCE.md](EVIDENCE.md) for measurements and limitations.
+Disable `enableEval` and restart afterward. Current cases use JEV's schema and include 180k-token routing facts. Historical Luna cases and measurements remain under `evals/legacy`; they are not current acceptance criteria. Add separate outcome checks for actual task execution.
 
 ## Disable or restore
 
-Disable the `model-router` plugin entry and restart the gateway to stop routing. To remove the runtime extension, restore the validated originals and restart again:
+Disable the plugin and restart to stop routing. Restore only the extensions you applied:
 
 ```sh
+python3 fallback-notice-compat.py --restore /absolute/path/to/openclaw
 python3 compat.py --restore /absolute/path/to/openclaw
 ```
 
-MIT licensed. The repository excludes credentials, private session logs and runtime fixtures.
+Restart after restoration. MIT licensed. Credentials, private session logs and host fixtures are excluded from the repository.

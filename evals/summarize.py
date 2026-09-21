@@ -18,7 +18,9 @@ summary={
  'failures':[{'id':r['id'],'repeat':r['repeat'],'failures':r['failures'],'assessment':r['result'].get('assessment'),'route':r['result'].get('route')} for r in rows if not r['passed']],
  'profilesByCase':{k:[r['result'].get('route',{}).get('profile') for r in v] for k,v in bycase.items()},
  'tokenUsage':{key:sum(r['result'].get('usage',{}).get(key,0) for r in rows) for key in ['inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens','totalTokens']},
- 'billedCostUsd':None,
- 'notes':['Labels were fixed before the run. Repetitions of the same case are correlated; this is not a population accuracy confidence estimate.','Acceptable route ranges are policy judgments, not proof of the selected model solving the task.','Host cost metadata is unavailable/zero without pricing; do not interpret it as free usage.']
+ 'classifierCostReportedUsd':sum(r['result'].get('usage',{}).get('costUsd',0) or 0 for r in valid),
+ 'trialsWithReportedCost':sum(isinstance(r['result'].get('usage',{}).get('costUsd'),(int,float)) for r in valid),
+ 'executionCostUsd':None,
+ 'notes':['Labels were fixed before the run. Repetitions of the same case are correlated; this is not a population accuracy confidence estimate.','Acceptable route ranges are policy judgments, not proof of the selected model solving the task.','Classifier cost is summed only where reported; failed calls may have unknown cost. Execution cost is not measured.']
 }
 Path(a.output).write_text(json.dumps(summary,indent=2)+'\n');print(json.dumps({k:v for k,v in summary.items() if k not in ['failures','profilesByCase','notes']},indent=2))

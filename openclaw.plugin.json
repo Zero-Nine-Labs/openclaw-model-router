@@ -1,10 +1,12 @@
 {
   "id": "model-router",
   "name": "Difficulty and urgency model router",
-  "version": "0.1.9",
-  "description": "Classify with Luna low; route model and effort using difficulty, urgency, scope and consequences.",
+  "version": "0.2.4-jev-experimental",
+  "description": "Classify with JEV; route model and effort using current-task complexity, ambiguity and consequences.",
   "activation": {
-    "onCapabilities": ["hook"]
+    "onCapabilities": [
+      "hook"
+    ]
   },
   "configSchema": {
     "type": "object",

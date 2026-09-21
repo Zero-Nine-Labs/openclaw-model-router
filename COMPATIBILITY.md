@@ -48,3 +48,20 @@ Repeated apply/restore calls are idempotent. Restart the gateway after applicati
 `OPENCLAW_ROUTER_FIXTURES=/path/to/pinned/originals npm run test:compat` checks preflight rejection, patch/restore hashes, repeated operations, mixed-state restoration, and JavaScript syntax for the matching profile. It executes extracted runtime expressions/functions for manual flags, hook precedence, and effort application. `npm test` runs the portable plugin tests, covering fallback candidates and concurrent session isolation. The compatibility command requires the original runtime files listed in `compat.py`; the repository does not include them.
 
 These tests do not substitute for live gateway checks. Acceptance also requires observing actual execution model and reasoning effort, preserving manual model/thinking choices, and confirming gateway health. Public benchmark scores do not verify this runtime integration.
+
+## Optional fallback-notice repair
+
+`fallback-notice-compat.py` has its own single-file profile for OpenClaw 2026.9.3, targeting `agent-runner.runtime-ChH8PGBC.mjs`. It uses the shared patch engine but replaces the profile registry for that invocation, so the 2026.9.5 thinking profile remains unchanged.
+
+When execution explicitly reports no fallback and no failed attempts, the host uses the successfully routed model as the origin of its notice calculation. Genuine failures, persisted automatic fallback origins and native runtime model selection retain their precedence.
+
+Original SHA256: `611f4dea79b1a3908a30de2ae155072e302f995259d13b578752b1b2fab309be`.
+Patched SHA256: `5baeeffddbdb8c8d5d0c1f3cab190e98da2e4dcbe7d69865029345242aad5762`.
+
+```sh
+python3 fallback-notice-compat.py --check /absolute/path/to/openclaw
+python3 fallback-notice-compat.py --apply /absolute/path/to/openclaw
+python3 fallback-notice-compat.py --restore /absolute/path/to/openclaw
+```
+
+Validated originals are stored separately in `.openclaw-fallback-notice-backup`. This repair is not verified for 2026.9.5; an unrecognized bundle is refused. Restart after applying or restoring it. `OPENCLAW_FALLBACK_FIXTURES=/path/to/originals npm run test:fallback` exercises the pinned file and its extracted notice behavior.

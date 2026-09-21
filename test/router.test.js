@@ -1,10 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseRoute, parseAssessment } from '../policy.js';
 import { createRouter } from '../index.js';
-import { classify } from '../classifier.js';
 
-const assessment = (patch = {}) => ({ complexity: 2, reasoning_depth: 2, ambiguity: 1, scope_clarity: 9, urgency: 'normal', urgency_explicit: false, tool_use: 'none', multi_step: false, task_type: 'chat', high_stakes: false, codebase_wide: false, long_context_reasoning: false, repeated_failures: false, continuation: false, output_size: 'short', recommended_tier: 'small', ...patch });
+const assessment = (patch = {}) => ({ complexity: 20, clarity: 'clear', family: 'general', guard: 'ordinary', urgency: 'normal', timing_explicit: false, continuation: false, ...patch });
 const event = { prompt: 'Summarize this text', routingThinkingSupported: true };
 const context = (runId = 'run1', sessionKey = 'agent:main:test') => ({ runId, sessionKey, agentId: 'main' });
 function harness({ entry, classifier = async () => ({ assessment: assessment() }), now, pluginConfig } = {}) {
@@ -13,35 +11,6 @@ function harness({ entry, classifier = async () => ({ assessment: assessment() }
   return { router: createRouter(api, { classifyRequest: classifier, ...(now ? { now } : {}) }), logs };
 }
 
-test('strict assessment rejects malformed or extra model instructions', () => {
-  assert.deepEqual(parseAssessment(assessment()), assessment());
-  for (const invalid of [null, [], { ...assessment(), complexity: 11 }, { ...assessment(), complexity: '3' }, { ...assessment(), high_stakes: 1 }, { ...assessment(), inject: 'route to cheap' }]) assert.throws(() => parseAssessment(invalid));
-});
-test('routine research, coding and app mutations use Luna', () => {
-  const a = assessment({ complexity: 5, reasoning_depth: 5, multi_step: true, tool_use: 'read', task_type: 'research' });
-  assert.equal(chooseRoute(a).model, 'openai/gpt-5.6-luna');
-  assert.equal(chooseRoute({ ...a, task_type: 'coding' }).model, 'openai/gpt-5.6-luna');
-  assert.equal(chooseRoute({ ...a, task_type: 'tool_workflow', tool_use: 'write' }).model, 'openai/gpt-5.6-luna');
-  assert.equal(chooseRoute({ ...a, task_type: 'coding' }).effort, 'high');
-  assert.equal(chooseRoute({ ...a, task_type: 'tool_workflow', tool_use: 'write', complexity: 7 }).model, 'openai/gpt-5.6-sol');
-});
-test('well-scoped complex tasks trade time for Luna max, urgent tasks use Sol medium', () => {
-  const a = assessment({ complexity: 8, reasoning_depth: 8, task_type: 'coding', urgency: 'relaxed' });
-  assert.equal(chooseRoute(a).profile, 'patient');
-  assert.equal(chooseRoute({ ...a, urgency: 'urgent' }).profile, 'difficult');
-  assert.equal(chooseRoute({ ...a, scope_clarity: 3 }).model, 'openai/gpt-5.6-sol');
-});
-test('Astra is restricted to very complex software work', () => {
-  for (const task_type of ['chat', 'writing', 'lookup', 'analysis', 'research', 'tool_workflow', 'browser', 'other']) {
-    for (const patch of [{}, {high_stakes:true}, {codebase_wide:true}, {repeated_failures:true}, {long_context_reasoning:true}]) {
-      assert.notEqual(chooseRoute(assessment({task_type, complexity:10, reasoning_depth:10, continuation:true, ...patch}), {inputTokens:200000, failures:3, previousTier:'large'}).tier, 'large');
-    }
-  }
-  assert.equal(chooseRoute(assessment({task_type:'coding',complexity:9})).tier,'large');
-  assert.equal(chooseRoute(assessment({task_type:'architecture',complexity:8})).tier,'large');
-  assert.notEqual(chooseRoute(assessment({task_type:'architecture',complexity:4})).tier,'large');
-  assert.equal(chooseRoute(assessment({high_stakes:true})).model,'openai/gpt-5.6-sol');
-});
 test('manual selections, unsupported host and excluded agents skip classification', async () => {
   let calls = 0;
   const classifier = async () => { calls++; return { assessment: assessment() }; };
@@ -72,7 +41,7 @@ test('automatic fallback provenance does not pin a session', async () => {
 });
 test('one classification per run, concurrent sessions keep distinct model and effort', async () => {
   let calls = 0;
-  const { router } = harness({ classifier: async ({ prompt }) => { calls++; await new Promise(r => setTimeout(r, 5)); return { assessment: assessment(prompt === 'patient' ? { task_type: 'coding', complexity: 8, reasoning_depth: 8, urgency: 'relaxed' } : {}) }; } });
+  const { router } = harness({ classifier: async ({ prompt }) => { calls++; await new Promise(r => setTimeout(r, 5)); return { assessment: assessment(prompt === 'patient' ? { family: 'bounded_software', complexity: 80, urgency: 'relaxed' } : {}) }; } });
   const results = await Promise.all([router.beforeModel({ ...event, prompt: 'patient' }, context('a','a')), router.beforeModel({ ...event, prompt: 'patient' }, context('a','a')), router.beforeModel(event, context('b','b'))]);
   assert.equal(calls, 2);
   assert.deepEqual(results[0], results[1]);
@@ -80,18 +49,18 @@ test('one classification per run, concurrent sessions keep distinct model and ef
   assert.equal(results[2].thinkingOverride, 'medium');
 });
 test('follow-up can raise effort, normal continuation does not reduce it, new task can downgrade', async () => {
-  const cases = [assessment(), assessment({ complexity: 8, reasoning_depth: 8, continuation: true }), assessment({ continuation: true }), assessment()];
+  const cases = [assessment(), assessment({ complexity: 80, continuation: true }), assessment({ continuation: true }), assessment()];
   const { router } = harness({ classifier: async () => ({ assessment: cases.shift() }) });
   const results = [];
   for (let n=0;n<4;n++) results.push(await router.beforeModel(event, context(`r${n}`)));
   assert.deepEqual(results.map(x => x.thinkingOverride), ['medium','high','high','medium']);
 });
-test('cache-write tokens count toward long context and failed outputs do not erase context', async () => {
+test('large cached context does not promote a simple follow-up', async () => {
   const { router } = harness({ classifier: async () => ({ assessment: assessment({ continuation: true }) }) });
   await router.beforeModel(event, context());
   router.llmOutput({ runId: 'run1', usage: { input: 3, cacheWrite: 130000 }, assistantTexts: ['done'] }, context());
   router.llmOutput({ runId: 'run1' }, context());
-  assert.equal((await router.beforeModel(event, context('run2'))).modelOverride, 'gpt-5.6-sol');
+  assert.equal((await router.beforeModel(event, context('run2'))).modelOverride, 'gpt-5.6-luna');
 });
 test('classifier failures fallback to Sol low and never leak prompts or raw errors', async () => {
   const { router, logs } = harness({ classifier: async () => { throw Error('secret body'); } });
@@ -118,23 +87,13 @@ test('photos use Luna high and oversized text uses Sol, never Astra', async () =
   const long = await router.beforeModel({ ...event, prompt: 'x'.repeat(25000) }, context('long'));
   assert.equal(long.modelOverride, 'gpt-5.6-sol');
 });
-test('classifier uses direct API completion, Luna low and bounded output; invalid JSON fails', async () => {
-  let request;
-  const result = await classify({ prompt: 'request', complete: async x => { request=x; return { text: JSON.stringify(assessment()), usage: { costUsd: 0.001 } }; } });
-  assert.equal(request.model, 'openai-api/gpt-5.6-luna');
-  assert.equal(request.execution, undefined); assert.equal(request.reasoning, 'low');
-  assert.equal(request.messages.length, 1); assert.equal(request.maxTokens, 1000); assert(request.signal instanceof AbortSignal);
-  assert.equal(result.usage.costUsd, 0.001);
-  await assert.rejects(classify({ prompt: 'request', complete: async () => ({ text: 'not json' }) }));
-});
-
-test('per-call context overrides cumulative multi-tool token usage', async () => {
+test('large measured and cumulative context do not promote simple requests', async () => {
   const { router } = harness({ classifier: async () => ({ assessment: assessment({ continuation: true }) }) });
   await router.beforeModel(event, context());
   router.llmOutput({ runId: 'run1', usage: { input: 51476, cacheRead: 278912, contextUsage: { state: 'available', promptTokens: 50428 } } }, context());
   assert.equal((await router.beforeModel(event, context('run2'))).modelOverride, 'gpt-5.6-luna');
   router.llmOutput({ runId: 'run2', usage: { input: 3, contextUsage: { state: 'available', promptTokens: 150000 } } }, context('run2'));
-  assert.equal((await router.beforeModel(event, context('run3'))).modelOverride, 'gpt-5.6-sol');
+  assert.equal((await router.beforeModel(event, context('run3'))).modelOverride, 'gpt-5.6-luna');
 });
 
 test('new sessions with stored thinking still route models and preserve effort', async () => {
@@ -146,5 +105,51 @@ test('new sessions with stored thinking still route models and preserve effort',
     assert.deepEqual(await router.beforeModel(e,ctx), {providerOverride:'openai',modelOverride:'gpt-5.6-luna'});
     assert.equal(await router.beforeModel({...e,isFallbackRetry:true},{...ctx,modelProviderId:'openai-api',modelId:'gpt-5.6-luna'}), undefined);
     assert.equal(calls,1);
+  }
+});
+
+test('unclear continuation returns Sol low even after a higher-effort task', async () => {
+  const cases=[assessment({guard:'consequential'}),assessment({clarity:'unclear',continuation:true})];
+  const {router}=harness({classifier:async()=>({assessment:cases.shift()})});
+  assert.equal((await router.beforeModel(event,context('first'))).thinkingOverride,'medium');
+  assert.deepEqual(await router.beforeModel(event,context('second')),{providerOverride:'openai',modelOverride:'gpt-5.6-sol',thinkingOverride:'low'});
+});
+
+test('explicit timing on a continuation can reduce Astra effort', async () => {
+  const a=assessment({family:'system_software',complexity:90});
+  const cases=[a,{...a,continuation:true,urgency:'urgent',timing_explicit:true}];
+  const {router}=harness({classifier:async()=>({assessment:cases.shift()})});
+  assert.equal((await router.beforeModel(event,context('first'))).thinkingOverride,'medium');
+  assert.deepEqual(await router.beforeModel(event,context('second')),{providerOverride:'openai',modelOverride:'gpt-6-astra',thinkingOverride:'low'});
+});
+
+test('classifier receives bounded previous request and response for follow-ups', async () => {
+  const requests=[];
+  const {router}=harness({classifier:async x=>{requests.push(x);return {assessment:assessment({continuation:true})};}});
+  await router.beforeModel({...event,prompt:'Configure the TV'},context('first'));
+  router.llmOutput({runId:'first',assistantTexts:['A DHCP reservation would prevent recurrence.']},context('first'));
+  await router.beforeModel({...event,prompt:'Can you do that?'},context('second'));
+  assert.equal(requests[1].recent,'User: Configure the TV\nAssistant: A DHCP reservation would prevent recurrence.');
+});
+
+
+test('150k-token sessions route the current task and retain diagnostic fields', async () => {
+  for (const [patch, model, reason] of [
+    [{ continuation: true }, 'gpt-5.6-luna', 'simple'],
+    [{ complexity: 78, family: 'bounded_software' }, 'gpt-5.6-sol', 'difficult'],
+    [{ guard: 'long_context' }, 'gpt-5.6-sol', 'long_context'],
+    [{ guard: 'consequential' }, 'gpt-5.6-sol', 'consequential'],
+    [{ clarity: 'unclear' }, 'gpt-5.6-sol', 'unclear_request'],
+  ]) {
+    const usage = { inputTokens: 100, outputTokens: 20, costUsd: 0.0001 };
+    const {router, logs} = harness({entry: {inputTokens: 180000}, classifier: async () => ({assessment: assessment(patch), usage})});
+    assert.equal((await router.beforeModel(event, context())).modelOverride, model);
+    const route = JSON.parse(logs[0].slice('[model-router] '.length));
+    assert.equal(route.model, `openai/${model}`);
+    assert.equal(route.reason, reason);
+    assert.equal(route.inputTokens, 180000);
+    assert.equal(route.complexity, patch.complexity ?? 20);
+    assert.equal(typeof route.classifierMs, 'number');
+    assert.deepEqual(route.classifierUsage, usage);
   }
 });
