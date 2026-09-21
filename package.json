@@ -15,7 +15,8 @@
     "LICENSE",
     "decision.js",
     "jev.js",
-    "fallback-notice-compat.py"
+    "fallback-notice-compat.py",
+    "HOST-AVAILABILITY.md"
   ],
   "scripts": {
     "test": "node --test test/router.test.js test/jev.test.js test/eval.test.js",
