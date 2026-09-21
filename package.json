@@ -1,24 +1,26 @@
 {
   "name": "@zero-nine-labs/openclaw-model-router",
-  "version": "0.1.9",
-  "description": "Luna classification and deterministic difficulty routing for OpenClaw",
+  "version": "0.2.4-jev-experimental",
+  "description": "JEV classification and deterministic model routing for OpenClaw",
   "type": "module",
   "license": "MIT",
   "files": [
     "index.js",
-    "policy.js",
-    "classifier.js",
     "evaluate.js",
     "openclaw.plugin.json",
     "compat.py",
     "README.md",
     "COMPATIBILITY.md",
     "EVIDENCE.md",
-    "LICENSE"
+    "LICENSE",
+    "decision.js",
+    "jev.js",
+    "fallback-notice-compat.py"
   ],
   "scripts": {
-    "test": "node --test test/router.test.js test/eval.test.js",
-    "test:compat": "node --test test/compat.test.js"
+    "test": "node --test test/router.test.js test/jev.test.js test/eval.test.js",
+    "test:compat": "node --test test/compat.test.js",
+    "test:fallback": "node --test test/fallback-notice.test.js"
   },
   "engines": {
     "node": ">=24.16.0 <25 || >=26.1.0"
