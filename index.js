@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { classify } from './jev.js';
-import { chooseRoute, profiles } from './decision.js';
+import { chooseRoute, profiles, readModels } from './decision.js';
 import { registerEvaluation } from './evaluate.js';
 
 const defaults = { agentIds: ['main'], timeoutMs: 8000, maxPromptChars: 24000, sessionTtlMs: 1800000, maxSessions: 500 };
@@ -9,6 +9,7 @@ const explicitDirective = /(?:^|\s)\/(?:model|think|thinking|t)(?:\s|:|$)/i;
 
 export function createRouter(api, { now = Date.now, classifyRequest = classify } = {}) {
   const config = { ...defaults, ...api.pluginConfig };
+  const models = readModels(config);
   const sessions = new Map();
   const runs = new Map();
   let warnedMissingPatch = false;
@@ -63,7 +64,7 @@ export function createRouter(api, { now = Date.now, classifyRequest = classify }
     let classifierErrorCode;
     if (event.prompt.length > config.maxPromptChars || event.attachments?.length) {
       selected = event.attachments?.length
-        ? { ...profiles.routine_luna, profile: 'routine_luna', reason: 'unseen_attachment' }
+        ? { ...profiles.routine_small, profile: 'routine_small', reason: 'unseen_attachment' }
         : { ...profiles.difficult, profile: 'difficult', reason: 'classifier_input_limit' };
     } else {
       try {
@@ -81,6 +82,7 @@ export function createRouter(api, { now = Date.now, classifyRequest = classify }
         selected = { ...profiles.routine, profile: 'routine', reason: failure };
       }
     }
+    selected = { ...selected, model: models[selected.tier] };
     const continuing = previous && (assessment?.continuation || !assessment);
     const taskId = continuing ? previous.taskId : ctx.runId;
     const classifierCostUsd = Number.isFinite(usage?.costUsd) && usage.costUsd > 0 ? usage.costUsd : null;

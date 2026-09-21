@@ -7,14 +7,14 @@ const event = { prompt: 'Summarize this text', routingThinkingSupported: true };
 const context = (runId = 'run1', sessionKey = 'agent:main:test') => ({ runId, sessionKey, agentId: 'main' });
 function harness({ entry, classifier = async () => ({ assessment: assessment() }), now, pluginConfig } = {}) {
   const logs = [];
-  const api = { pluginConfig, logger: { info: x => logs.push(x), warn: x => logs.push(x) }, runtime: { agent: { session: { getSessionEntry: () => entry } }, llm: { complete: () => { throw Error('unexpected'); } } } };
+  const api = { pluginConfig: { models: { small: 'openai/small-model', medium: 'openai/medium-model', large: 'openai/large-model' }, ...pluginConfig }, logger: { info: x => logs.push(x), warn: x => logs.push(x) }, runtime: { agent: { session: { getSessionEntry: () => entry } }, llm: { complete: () => { throw Error('unexpected'); } } } };
   return { router: createRouter(api, { classifyRequest: classifier, ...(now ? { now } : {}) }), logs };
 }
 
 test('manual selections, unsupported host and excluded agents skip classification', async () => {
   let calls = 0;
   const classifier = async () => { calls++; return { assessment: assessment() }; };
-  for (const entry of [{ modelOverride: 'gpt-5.6-sol', modelOverrideSource: 'user' }, { modelOverride: 'legacy' }, { modelSelectionLocked: true }]) {
+  for (const entry of [{ modelOverride: 'medium-model', modelOverrideSource: 'user' }, { modelOverride: 'legacy' }, { modelSelectionLocked: true }]) {
     assert.equal(await harness({ entry, classifier }).router.beforeModel(event, context()), undefined);
   }
   const { router } = harness({ classifier });
@@ -27,17 +27,17 @@ test('manual selections, unsupported host and excluded agents skip classificatio
 test('failed routed model does not replace the host fallback candidate', async () => {
   let calls = 0;
   const { router } = harness({ classifier: async () => { calls++; return { assessment: assessment() }; } });
-  const ctx = { ...context(), modelProviderId: 'openai', modelId: 'gpt-5.6-sol' };
-  assert.equal((await router.beforeModel(event, ctx)).modelOverride, 'gpt-5.6-luna');
-  assert.deepEqual(await router.beforeModel(event, { ...ctx, modelProviderId: 'openai-api', modelId: 'gpt-5.6-luna' }), { thinkingOverride: 'medium' });
+  const ctx = { ...context(), modelProviderId: 'openai', modelId: 'medium-model' };
+  assert.equal((await router.beforeModel(event, ctx)).modelOverride, 'small-model');
+  assert.deepEqual(await router.beforeModel(event, { ...ctx, modelProviderId: 'openai-api', modelId: 'small-model' }), { thinkingOverride: 'medium' });
   assert.deepEqual(await router.beforeModel({ ...event, isFallbackRetry: true }, ctx), { thinkingOverride: 'medium' });
   assert.equal(calls, 1);
   const fresh = harness({ classifier: async () => { throw Error('must not classify fallback'); } });
   assert.equal(await fresh.router.beforeModel({ ...event, isFallbackRetry: true }, { ...ctx, modelProviderId: 'openai-api' }), undefined);
 });
 test('automatic fallback provenance does not pin a session', async () => {
-  const { router } = harness({ entry: { modelOverride: 'gpt-5.6-sol', modelOverrideSource: 'auto' } });
-  assert.equal((await router.beforeModel(event, context())).modelOverride, 'gpt-5.6-luna');
+  const { router } = harness({ entry: { modelOverride: 'medium-model', modelOverrideSource: 'auto' } });
+  assert.equal((await router.beforeModel(event, context())).modelOverride, 'small-model');
 });
 test('one classification per run, concurrent sessions keep distinct model and effort', async () => {
   let calls = 0;
@@ -60,40 +60,40 @@ test('large cached context does not promote a simple follow-up', async () => {
   await router.beforeModel(event, context());
   router.llmOutput({ runId: 'run1', usage: { input: 3, cacheWrite: 130000 }, assistantTexts: ['done'] }, context());
   router.llmOutput({ runId: 'run1' }, context());
-  assert.equal((await router.beforeModel(event, context('run2'))).modelOverride, 'gpt-5.6-luna');
+  assert.equal((await router.beforeModel(event, context('run2'))).modelOverride, 'small-model');
 });
-test('classifier failures fallback to Sol low and never leak prompts or raw errors', async () => {
+test('classifier failures fallback to medium model low and never leak prompts or raw errors', async () => {
   const { router, logs } = harness({ classifier: async () => { throw Error('secret body'); } });
   const result = await router.beforeModel({ ...event, prompt: 'private request' }, context());
-  assert.equal(result.modelOverride, 'gpt-5.6-sol'); assert.equal(result.thinkingOverride, 'low');
+  assert.equal(result.modelOverride, 'medium-model'); assert.equal(result.thinkingOverride, 'low');
   assert(!logs.join('').includes('secret body')); assert(!logs.join('').includes('private request'));
   const longContext = harness({ entry: { inputTokens: 130000 }, classifier: async () => { throw Error('unavailable'); } });
-  assert.equal((await longContext.router.beforeModel(event, context())).modelOverride, 'gpt-5.6-sol');
+  assert.equal((await longContext.router.beforeModel(event, context())).modelOverride, 'medium-model');
 });
-test('timeout and malformed classifier responses use Sol low without pinning new tasks', async () => {
+test('timeout and malformed classifier responses use medium model low without pinning new tasks', async () => {
   for (const error of [new DOMException('deadline', 'TimeoutError'), new SyntaxError('invalid JSON')]) {
     let failing = true;
     const { router } = harness({ classifier: async () => { if (failing) throw error; return { assessment: assessment() }; } });
-    assert.equal((await router.beforeModel(event, context())).modelOverride, 'gpt-5.6-sol');
+    assert.equal((await router.beforeModel(event, context())).modelOverride, 'medium-model');
     failing = false;
-    assert.equal((await router.beforeModel(event, context('new-task'))).modelOverride, 'gpt-5.6-luna');
+    assert.equal((await router.beforeModel(event, context('new-task'))).modelOverride, 'small-model');
   }
 });
-test('photos use Luna high and oversized text uses Sol, never Astra', async () => {
+test('photos use small model high and oversized text uses medium model, never large model', async () => {
   const { router } = harness({ classifier: async () => { throw Error('must not classify'); } });
   const photo = await router.beforeModel({ ...event, prompt: 'Log snack', attachments: [{ kind: 'image' }] }, context('photo'));
-  assert.equal(photo.modelOverride, 'gpt-5.6-luna');
+  assert.equal(photo.modelOverride, 'small-model');
   assert.equal(photo.thinkingOverride, 'high');
   const long = await router.beforeModel({ ...event, prompt: 'x'.repeat(25000) }, context('long'));
-  assert.equal(long.modelOverride, 'gpt-5.6-sol');
+  assert.equal(long.modelOverride, 'medium-model');
 });
 test('large measured and cumulative context do not promote simple requests', async () => {
   const { router } = harness({ classifier: async () => ({ assessment: assessment({ continuation: true }) }) });
   await router.beforeModel(event, context());
   router.llmOutput({ runId: 'run1', usage: { input: 51476, cacheRead: 278912, contextUsage: { state: 'available', promptTokens: 50428 } } }, context());
-  assert.equal((await router.beforeModel(event, context('run2'))).modelOverride, 'gpt-5.6-luna');
+  assert.equal((await router.beforeModel(event, context('run2'))).modelOverride, 'small-model');
   router.llmOutput({ runId: 'run2', usage: { input: 3, contextUsage: { state: 'available', promptTokens: 150000 } } }, context('run2'));
-  assert.equal((await router.beforeModel(event, context('run3'))).modelOverride, 'gpt-5.6-luna');
+  assert.equal((await router.beforeModel(event, context('run3'))).modelOverride, 'small-model');
 });
 
 test('new sessions with stored thinking still route models and preserve effort', async () => {
@@ -101,26 +101,26 @@ test('new sessions with stored thinking still route models and preserve effort',
     let calls = 0;
     const {router} = harness({entry, classifier: async () => { calls++; return {assessment:assessment()}; }});
     const e = {...event, thinkingExplicit: !entry};
-    const ctx = {...context(), modelProviderId:'openai', modelId:'gpt-5.6-sol'};
-    assert.deepEqual(await router.beforeModel(e,ctx), {providerOverride:'openai',modelOverride:'gpt-5.6-luna'});
-    assert.equal(await router.beforeModel({...e,isFallbackRetry:true},{...ctx,modelProviderId:'openai-api',modelId:'gpt-5.6-luna'}), undefined);
+    const ctx = {...context(), modelProviderId:'openai', modelId:'medium-model'};
+    assert.deepEqual(await router.beforeModel(e,ctx), {providerOverride:'openai',modelOverride:'small-model'});
+    assert.equal(await router.beforeModel({...e,isFallbackRetry:true},{...ctx,modelProviderId:'openai-api',modelId:'small-model'}), undefined);
     assert.equal(calls,1);
   }
 });
 
-test('unclear continuation returns Sol low even after a higher-effort task', async () => {
+test('unclear continuation returns medium model low even after a higher-effort task', async () => {
   const cases=[assessment({guard:'consequential'}),assessment({clarity:'unclear',continuation:true})];
   const {router}=harness({classifier:async()=>({assessment:cases.shift()})});
   assert.equal((await router.beforeModel(event,context('first'))).thinkingOverride,'medium');
-  assert.deepEqual(await router.beforeModel(event,context('second')),{providerOverride:'openai',modelOverride:'gpt-5.6-sol',thinkingOverride:'low'});
+  assert.deepEqual(await router.beforeModel(event,context('second')),{providerOverride:'openai',modelOverride:'medium-model',thinkingOverride:'low'});
 });
 
-test('explicit timing on a continuation can reduce Astra effort', async () => {
+test('explicit timing on a continuation can reduce large model effort', async () => {
   const a=assessment({family:'system_software',complexity:90});
   const cases=[a,{...a,continuation:true,urgency:'urgent',timing_explicit:true}];
   const {router}=harness({classifier:async()=>({assessment:cases.shift()})});
   assert.equal((await router.beforeModel(event,context('first'))).thinkingOverride,'medium');
-  assert.deepEqual(await router.beforeModel(event,context('second')),{providerOverride:'openai',modelOverride:'gpt-6-astra',thinkingOverride:'low'});
+  assert.deepEqual(await router.beforeModel(event,context('second')),{providerOverride:'openai',modelOverride:'large-model',thinkingOverride:'low'});
 });
 
 test('classifier receives bounded previous request and response for follow-ups', async () => {
@@ -135,11 +135,11 @@ test('classifier receives bounded previous request and response for follow-ups',
 
 test('150k-token sessions route the current task and retain diagnostic fields', async () => {
   for (const [patch, model, reason] of [
-    [{ continuation: true }, 'gpt-5.6-luna', 'simple'],
-    [{ complexity: 78, family: 'bounded_software' }, 'gpt-5.6-sol', 'difficult'],
-    [{ guard: 'long_context' }, 'gpt-5.6-sol', 'long_context'],
-    [{ guard: 'consequential' }, 'gpt-5.6-sol', 'consequential'],
-    [{ clarity: 'unclear' }, 'gpt-5.6-sol', 'unclear_request'],
+    [{ continuation: true }, 'small-model', 'simple'],
+    [{ complexity: 78, family: 'bounded_software' }, 'medium-model', 'difficult'],
+    [{ guard: 'long_context' }, 'medium-model', 'long_context'],
+    [{ guard: 'consequential' }, 'medium-model', 'consequential'],
+    [{ clarity: 'unclear' }, 'medium-model', 'unclear_request'],
   ]) {
     const usage = { inputTokens: 100, outputTokens: 20, costUsd: 0.0001 };
     const {router, logs} = harness({entry: {inputTokens: 180000}, classifier: async () => ({assessment: assessment(patch), usage})});
@@ -151,5 +151,23 @@ test('150k-token sessions route the current task and retain diagnostic fields', 
     assert.equal(route.complexity, patch.complexity ?? 20);
     assert.equal(typeof route.classifierMs, 'number');
     assert.deepEqual(route.classifierUsage, usage);
+  }
+});
+
+test('configured model references control each route without source edits', async () => {
+  const models = { small: 'local/small/v2', medium: 'cloud/reasoning', large: 'cloud/deep' };
+  const cases = [assessment(), assessment({ guard: 'consequential' }), assessment({ family: 'system_software', complexity: 95 })];
+  const { router } = harness({ pluginConfig: { models }, classifier: async () => ({ assessment: cases.shift() }) });
+  const actual = [];
+  for (let i = 0; i < 3; i++) {
+    const result = await router.beforeModel(event, context(`configured-${i}`));
+    actual.push(`${result.providerOverride}/${result.modelOverride}`);
+  }
+  assert.deepEqual(actual, Object.values(models));
+});
+
+test('missing or malformed model configuration fails before routing', () => {
+  for (const models of [undefined, {}, { small: 'missing-provider', medium: 'p/m', large: 'p/l' }]) {
+    assert.throws(() => harness({ pluginConfig: { models } }), /Configure models/);
   }
 });

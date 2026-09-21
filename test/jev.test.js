@@ -36,7 +36,7 @@ test('transport uses native Decisions with an abort deadline and no host complet
   await assert.rejects(classify({prompt:'x',apiKey:'test-only',timeoutMs:1,fetchImpl:async()=>({ok:true,json:async()=>{await new Promise(r=>setTimeout(r,10));return response();}})}),{name:'TimeoutError'});
 });
 
-test('unresolved ordinary requests use Sol low at every score; guards remain independent', () => {
+test('unresolved ordinary requests use medium model low at every score; guards remain independent', () => {
   for(const complexity of [0,25,60,85,100]) {
     const a=assessment({complexity,clarity:'unclear',continuation:true,family:'system_software'});
     assert.equal(chooseRoute(a,{previousTier:'large'}).profile,'routine');
@@ -46,7 +46,7 @@ test('unresolved ordinary requests use Sol low at every score; guards remain ind
   }
 });
 
-test('general tasks never use Astra, even with extreme scores or prior Astra task', () => {
+test('general tasks never use large model, even with extreme scores or prior large model task', () => {
   for(const clarity of ['clear','unclear']) for(const guard of ['ordinary','consequential','repeated_failures','long_context']) for(const urgency of ['normal','urgent','relaxed']) {
     assert.notEqual(chooseRoute(assessment({complexity:100,clarity,guard,urgency,continuation:true}),{previousTier:'large',inputTokens:200000,failures:3}).tier,'large');
   }

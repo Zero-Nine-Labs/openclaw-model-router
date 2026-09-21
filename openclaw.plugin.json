@@ -48,7 +48,36 @@
         "minimum": 10,
         "maximum": 5000,
         "default": 500
+      },
+      "models": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "small",
+          "medium",
+          "large"
+        ],
+        "properties": {
+          "small": {
+            "type": "string",
+            "pattern": "^[^\\s/]+/[^\\s]+$",
+            "description": "Provider/model reference for the small tier."
+          },
+          "medium": {
+            "type": "string",
+            "pattern": "^[^\\s/]+/[^\\s]+$",
+            "description": "Provider/model reference for the medium tier."
+          },
+          "large": {
+            "type": "string",
+            "pattern": "^[^\\s/]+/[^\\s]+$",
+            "description": "Provider/model reference for the large tier."
+          }
+        }
       }
-    }
+    },
+    "required": [
+      "models"
+    ]
   }
 }

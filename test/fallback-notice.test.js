@@ -55,7 +55,7 @@ function createMockSandbox() {
   };
 }
 
-describe('ZN-861 Fallback Notice Compatibility Patcher (fallback-notice-compat.py)', () => {
+describe('Fallback notice Fallback Notice Compatibility Patcher (fallback-notice-compat.py)', () => {
   it('detects unpatched original fixture via --check', () => {
     const ws = createFixtureWorkspace();
     try {
@@ -205,7 +205,7 @@ describe('ZN-861 Fallback Notice Compatibility Patcher (fallback-notice-compat.p
   });
 });
 
-describe('ZN-861 Callsite Verification (Extracted from Patched Host Source)', () => {
+describe('Fallback notice Callsite Verification (Extracted from Patched Host Source)', () => {
   let ws;
   let patchedContent;
 
@@ -251,12 +251,12 @@ describe('ZN-861 Callsite Verification (Extracted from Patched Host Source)', ()
         meta: {
           executionTrace: {
             fallbackUsed: false,
-            attempts: [{ provider: 'openai', model: 'gpt-5.6-luna', result: 'success' }],
+            attempts: [{ provider: 'openai', model: 'small-model', result: 'success' }],
           },
         },
       },
       fallbackAttempts: [],
-      sessionModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      sessionModel: { provider: 'openai', model: 'small-model' },
     };
 
     vm.runInNewContext(callsiteCode, testScope);
@@ -271,7 +271,7 @@ describe('ZN-861 Callsite Verification (Extracted from Patched Host Source)', ()
   });
 });
 
-describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () => {
+describe('Fallback notice False Fallback Notice Reproduction and Fix Verification', () => {
   let ws;
   let origResolve;
   let patchedResolve;
@@ -321,26 +321,26 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
   });
 
   it('reproduces exact original false notification and verifies patched selected origin yields no notice', () => {
-    // Baseline real run: configured Sol, intentional hook selected Luna, successful no fallback
+    // Baseline real run: configured medium model, intentional hook selected small model, successful no fallback
     const runParams = {
       run: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4' },
       fallbackStateEntry: undefined,
       runtimeModelSelection: undefined,
       executionTrace: {
         fallbackUsed: false,
-        attempts: [{ provider: 'openai', model: 'gpt-5.6-luna', result: 'success', stage: 'assistant' }],
+        attempts: [{ provider: 'openai', model: 'small-model', result: 'success', stage: 'assistant' }],
       },
       fallbackAttempts: [],
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     };
 
-    // 1. ORIGINAL behavior: returns configured Sol as fallback origin
+    // 1. ORIGINAL behavior: returns configured medium model as fallback origin
     const origOrigin = origResolve(runParams);
     assert.equal(origOrigin.provider, 'openrouter');
     assert.equal(origOrigin.model, 'anthropic/claude-sonnet-4');
     assert.equal(origOrigin.persistedAutoFallback, false);
 
-    // Transition comparison with active model Luna produces false fallback
+    // Transition comparison with active model small model produces false fallback
     const origTransition = resolveTransition({
       selectedProvider: origOrigin.provider,
       selectedModel: origOrigin.model,
@@ -367,17 +367,17 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
     });
     assert.match(
       origNoticeText,
-      /↪️ Model Fallback: openai\/gpt-5\.6-luna \(selected openrouter\/anthropic\/claude-sonnet-4; selected model unavailable\)/,
+      /↪️ Model Fallback: openai\/small-model \(selected openrouter\/anthropic\/claude-sonnet-4; selected model unavailable\)/,
       'Original produces false user-facing notice'
     );
 
-    // 2. PATCHED behavior: returns intentional active selection Luna as origin
+    // 2. PATCHED behavior: returns intentional active selection small model as origin
     const patchedOrigin = patchedResolve(runParams);
     assert.equal(patchedOrigin.provider, 'openai');
-    assert.equal(patchedOrigin.model, 'gpt-5.6-luna');
+    assert.equal(patchedOrigin.model, 'small-model');
     assert.equal(patchedOrigin.persistedAutoFallback, false);
 
-    // Transition comparison with active model Luna produces NO fallback notice
+    // Transition comparison with active model small model produces NO fallback notice
     const patchedTransition = resolveTransition({
       selectedProvider: patchedOrigin.provider,
       selectedModel: patchedOrigin.model,
@@ -409,9 +409,9 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
       run: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4' },
       executionTrace: { fallbackUsed: true, attempts },
       fallbackAttempts: attempts,
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     });
-    // Must NOT infer intentional selection; must keep configured Sol
+    // Must NOT infer intentional selection; must keep configured medium model
     assert.equal(origin.provider, 'openrouter');
     assert.equal(origin.model, 'anthropic/claude-sonnet-4');
     assert.equal(origin.persistedAutoFallback, false);
@@ -420,7 +420,7 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
       selectedProvider: origin.provider,
       selectedModel: origin.model,
       activeProvider: 'openai',
-      activeModel: 'gpt-5.6-luna',
+      activeModel: 'small-model',
       attempts,
       state: undefined,
       cfg: {},
@@ -437,7 +437,7 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
       run: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4' },
       executionTrace: { fallbackUsed: true, attempts },
       fallbackAttempts: attempts,
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     });
     assert.equal(origin.provider, 'openrouter');
     assert.equal(origin.model, 'anthropic/claude-sonnet-4');
@@ -446,7 +446,7 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
       selectedProvider: origin.provider,
       selectedModel: origin.model,
       activeProvider: 'openai',
-      activeModel: 'gpt-5.6-luna',
+      activeModel: 'small-model',
       attempts,
       state: undefined,
       cfg: {},
@@ -463,9 +463,9 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
         modelOverrideFallbackOriginProvider: 'openrouter',
         modelOverrideFallbackOriginModel: 'anthropic/claude-sonnet-4',
       },
-      executionTrace: { fallbackUsed: false, attempts: [{ provider: 'openai', model: 'gpt-5.6-luna', result: 'success' }] },
+      executionTrace: { fallbackUsed: false, attempts: [{ provider: 'openai', model: 'small-model', result: 'success' }] },
       fallbackAttempts: [],
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     });
     // Persisted auto fallback must evaluate FIRST
     assert.equal(origin.provider, 'openrouter');
@@ -479,7 +479,7 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
       runtimeModelSelection: { provider: 'anthropic', model: 'claude-3-haiku' },
       executionTrace: { fallbackUsed: false },
       fallbackAttempts: [],
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     });
     assert.equal(origin.provider, 'anthropic');
     assert.equal(origin.model, 'claude-3-haiku');
@@ -491,7 +491,7 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
       run: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4' },
       executionTrace: undefined,
       fallbackAttempts: [],
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     });
     assert.equal(origin.provider, 'openrouter');
     assert.equal(origin.model, 'anthropic/claude-sonnet-4');
@@ -502,7 +502,7 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
     const previousState = {
       fallbackNotice: {
         selectedModel: 'openrouter/anthropic/claude-sonnet-4',
-        activeModel: 'openai/gpt-5.6-luna',
+        activeModel: 'openai/small-model',
         reason: 'selected model unavailable',
       },
     };
@@ -510,18 +510,18 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
     const origin = patchedResolve({
       run: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4' },
       fallbackStateEntry: previousState,
-      executionTrace: { fallbackUsed: false, attempts: [{ provider: 'openai', model: 'gpt-5.6-luna', result: 'success' }] },
+      executionTrace: { fallbackUsed: false, attempts: [{ provider: 'openai', model: 'small-model', result: 'success' }] },
       fallbackAttempts: [],
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     });
     assert.equal(origin.provider, 'openai');
-    assert.equal(origin.model, 'gpt-5.6-luna');
+    assert.equal(origin.model, 'small-model');
 
     const transition = resolveTransition({
       selectedProvider: origin.provider,
       selectedModel: origin.model,
       activeProvider: 'openai',
-      activeModel: 'gpt-5.6-luna',
+      activeModel: 'small-model',
       attempts: [],
       state: previousState,
       cfg: {},
@@ -536,19 +536,19 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
 
   it('case: unchanged same model produces no active fallback and no state change', () => {
     const origin = patchedResolve({
-      run: { provider: 'openai', model: 'gpt-5.6-luna' },
+      run: { provider: 'openai', model: 'small-model' },
       executionTrace: { fallbackUsed: false },
       fallbackAttempts: [],
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     });
     assert.equal(origin.provider, 'openai');
-    assert.equal(origin.model, 'gpt-5.6-luna');
+    assert.equal(origin.model, 'small-model');
 
     const transition = resolveTransition({
       selectedProvider: origin.provider,
       selectedModel: origin.model,
       activeProvider: 'openai',
-      activeModel: 'gpt-5.6-luna',
+      activeModel: 'small-model',
       attempts: [],
       state: undefined,
       cfg: {},
@@ -573,7 +573,7 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
       run: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4' },
       executionTrace: { fallbackUsed: false },
       fallbackAttempts: [],
-      activeModel: { provider: '   ', model: 'gpt-5.6-luna' },
+      activeModel: { provider: '   ', model: 'small-model' },
     });
     assert.equal(origin2.provider, 'openrouter');
     assert.equal(origin2.model, 'anthropic/claude-sonnet-4');
@@ -583,7 +583,7 @@ describe('ZN-861 False Fallback Notice Reproduction and Fix Verification', () =>
       run: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4' },
       executionTrace: { fallbackUsed: false },
       fallbackAttempts: [{ provider: 'openrouter', model: 'anthropic/claude-sonnet-4' }],
-      activeModel: { provider: 'openai', model: 'gpt-5.6-luna' },
+      activeModel: { provider: 'openai', model: 'small-model' },
     });
     assert.equal(origin3.provider, 'openrouter');
     assert.equal(origin3.model, 'anthropic/claude-sonnet-4');

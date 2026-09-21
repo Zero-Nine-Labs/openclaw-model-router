@@ -8,7 +8,7 @@
     },
     "profiles": [
       "simple",
-      "routine_luna",
+      "routine_small",
       "patient"
     ]
   },
@@ -22,7 +22,7 @@
     },
     "profiles": [
       "simple",
-      "routine_luna",
+      "routine_small",
       "patient"
     ]
   },
@@ -35,7 +35,7 @@
     },
     "profiles": [
       "simple",
-      "routine_luna",
+      "routine_small",
       "patient"
     ]
   },
