@@ -2,7 +2,7 @@
 
 Choose an execution model and reasoning effort for each request. JEV 1.13 classifies the current task through OpenRouter's Decisions API; deterministic rules choose a small, medium or large model tier. You configure the provider/model reference for each tier. This public distribution uses synthetic examples and contains no operator-specific routing defaults.
 
-This is experimental. Classification can be wrong, and route-label agreement does not prove answer quality or production savings. See [EVIDENCE.md](EVIDENCE.md).
+This is experimental. Classification can be wrong, and route-label agreement does not prove answer quality or production savings. The GPT-6 example below has not been remeasured against the historical evaluations. See [EVIDENCE.md](EVIDENCE.md).
 
 ## How it works
 
@@ -59,15 +59,30 @@ Enable the plugin under `plugins.entries["model-router"]`:
   "config": {
     "agentIds": ["main"],
     "models": {
-      "small": "your-provider/your-small-model",
-      "medium": "your-provider/your-medium-model",
-      "large": "your-provider/your-large-model"
+      "small": "openai/gpt-6-luna",
+      "medium": "openai/gpt-6-sol",
+      "large": "openai/gpt-6-astra"
     }
   }
 }
 ```
 
-Replace all three example references with models available to your account and included in the agent allowlist. The `models` configuration is required; missing or malformed references stop plugin initialization. Configure execution fallback through OpenClaw. When upgrading from an earlier version, add this configuration before enabling the new code. Old `llm` completion permissions are unnecessary for the direct JEV classifier. Validate configuration, restart, then verify model, effort and fallback in isolated sessions with delivery disabled. Fast mode remains a host setting.
+The example routes clear work to GPT-6 Luna, ambiguous or harder work to GPT-6 Sol, and the largest tier to GPT-6 Astra. Set OpenClaw’s default and execution fallback separately, for example:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openai/gpt-6-sol",
+        "fallbacks": ["openai-api/gpt-6-luna"]
+      }
+    }
+  }
+}
+```
+
+Replace the example references with models available to your account and included in the agent allowlist, including the fallback. The `models` configuration is required; missing or malformed references stop plugin initialization. Configure execution fallback through OpenClaw. When upgrading from an earlier version, add this configuration before enabling the new code. Old `llm` completion permissions are unnecessary for the direct JEV classifier. Validate configuration, restart, then verify model, effort and fallback in isolated sessions with delivery disabled. Fast mode remains a host setting.
 
 On the pinned 2026.9.3 build, an additional optional repair prevents false "selected model unavailable" notices after successful intentional routing:
 
@@ -86,7 +101,7 @@ OPENCLAW_ROUTER_FIXTURES=/path/to/original-thinking-files npm run test:compat
 OPENCLAW_FALLBACK_FIXTURES=/path/to/original-fallback-file npm run test:fallback
 ```
 
-Portable tests cover JEV parsing and transport, routing, manual choices, concurrent sessions, retries and long-context cases. The two compatibility suites need validated original 2026.9.3 runtime fixtures, which are not distributed here. Missing fixtures are errors, not skipped successes. The 2026.9.5 profile is preserved from the earlier contribution; it was not revalidated against 2026.9.5 runtime fixtures in this merge.
+Portable tests cover JEV parsing and transport, routing, manual choices, concurrent sessions, retries and long-context cases. The two compatibility suites need validated original 2026.9.3 runtime fixtures, which are not distributed here. Missing fixtures are errors, not skipped successes. The 2026.9.5 profile was checked against the exact installed bundle, including patch/restore hashes and live automatic and manual routing turns.
 
 For classifier-only testing, temporarily set `config.enableEval` to `true` and restart. The authenticated RPC requires `operator.admin` and never executes case prompts:
 

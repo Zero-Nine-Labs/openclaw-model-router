@@ -1,7 +1,7 @@
 {
   "id": "model-router",
   "name": "Difficulty and urgency model router",
-  "version": "0.2.4-jev-experimental",
+  "version": "0.2.5-jev-experimental",
   "description": "Classify with JEV; route model and effort using current-task complexity, ambiguity and consequences.",
   "activation": {
     "onCapabilities": [
