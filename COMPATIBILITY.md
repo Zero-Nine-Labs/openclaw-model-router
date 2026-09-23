@@ -19,12 +19,15 @@ Each run caches its classification. If the host retries with a different provide
 | OpenClaw | Runtime files patched |
 | --- | ---: |
 | 2026.9.3 | 5 |
-| 2026.9.5 | 4 |
+| 2026.9.5 | 5 |
+
+When replacing an earlier four-file 2026.9.5 patch, restore it with that version's patcher before applying this five-file profile. Preserve its validated backup under a distinct name so the new profile can create a complete five-file backup.
 
 ## Changed files
 
 | Runtime file | Change |
 | --- | --- |
+| `attempt-execution.runtime-BAZg0UFu.mjs` | On the pinned 2026.9.5 build, carries an explicit CLI model choice into embedded execution. |
 | `attempt-execution-crM9pZWL.mjs` | Carries one-turn model and thinking selections, plus the retry marker, into embedded execution. |
 | `agent-runner-utils-Bd5FUrZ1.mjs` | Carries channel thinking overrides and available model/retry markers into embedded execution. |
 | `embedded-agent-DNQn_PMM.mjs` | Carries markers into model setup and applies validated routed effort to that execution's parameters before model capability clamping. |

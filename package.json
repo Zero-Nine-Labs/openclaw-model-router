@@ -1,6 +1,6 @@
 {
   "name": "@zero-nine-labs/openclaw-model-router",
-  "version": "0.2.4-jev-experimental",
+  "version": "0.2.5-jev-experimental",
   "description": "JEV classification and deterministic model routing for OpenClaw",
   "type": "module",
   "license": "MIT",

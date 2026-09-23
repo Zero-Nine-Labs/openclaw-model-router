@@ -255,6 +255,7 @@ PATCH_TRANSFORMS = {
 
 OPENCLAW_2026_9_5_ORIGINAL_HASHES = {
     "agent-runner-utils-DzcJJCSY.mjs": "25be3d66c7bd4876d65a759c61f6c6817d363d1602beb5612094187021643122",
+    "attempt-execution.runtime-BAZg0UFu.mjs": "e1f479ba510deec678b1fbb268346fed7d1f714f7a3f5d1aab7f9b3ffd6c362a",
     "embedded-agent-BEeEP6_K.mjs": "e1a39e81429d64de2800475fba80bf297d76acbd8885cdfc418d16faf68ff374",
     "hooks-Jjh3afyP.mjs": "94e01df2379fd8657bff777eabe6f75c0bf25dfa70ab3127257b570931bc7bb8",
     "setup-Dxn9LXe0.mjs": "c02642b3783fc0d9c52114e5a44cba486e2c6191e3eb3be8929902180ca76e59",
@@ -262,12 +263,21 @@ OPENCLAW_2026_9_5_ORIGINAL_HASHES = {
 
 OPENCLAW_2026_9_5_PATCHED_HASHES = {
     "agent-runner-utils-DzcJJCSY.mjs": "e1f69fd72218686834d4c786728befa62fcf9e2702c43e939933ff9d0a63a097",
-    "embedded-agent-BEeEP6_K.mjs": "f42c2c40b2d2254dd3a58e3f3ca4dad8b5ee0a8394f350fbfe91cc1733024f2e",
+    "attempt-execution.runtime-BAZg0UFu.mjs": "06b7a8021f6532699cb7e42286f414677ad27d1fee942a568543e94060ddca06",
+    "embedded-agent-BEeEP6_K.mjs": "98f1afda847b99934b7d7c6d324823f88cb0ad3fa38910a1aab60309e6f5d8c8",
     "hooks-Jjh3afyP.mjs": "d7875a893c9a16b8b6ba6db4d7a20cd7511403d3d1ec8e8a6caaca0ce8092bce",
-    "setup-Dxn9LXe0.mjs": "e17bd889e2049e69667c8fd33ff84a741bcb978a729da2ead4d72b0850f43599",
+    "setup-Dxn9LXe0.mjs": "f9d90ca2955afcf5480411bf711e2927506413aa5dda95cf80b7b8cfc3cfa330",
 }
 
 PATCH_TRANSFORMS_2026_9_5 = {
+    "attempt-execution.runtime-BAZg0UFu.mjs": [
+        (
+            "\t\tmodelSelectionLocked: !isRawModelRun && params.sessionEntry?.modelSelectionLocked === true,",
+            "\t\tmodelSelectionLocked: !isRawModelRun && params.sessionEntry?.modelSelectionLocked === true,\n"
+            "\t\tmodelExplicit: typeof params.opts.model === \"string\" || typeof params.opts.provider === \"string\",\n"
+            "\t\tthinkLevelOverride: params.opts.thinking !== void 0 || params.opts.thinkingOnce !== void 0 ? params.resolvedThinkLevel : void 0,",
+        ),
+    ],
     "hooks-Jjh3afyP.mjs": [
         (
             "\tconst mergeBeforeModelResolve = (acc, next) => ({\n"
@@ -317,7 +327,7 @@ PATCH_TRANSFORMS_2026_9_5 = {
             "async function resolveHookModelSelection(params) {\n"
             "\tlet provider = params.provider;\n"
             "\tlet modelId = params.modelId;\n"
-            "\tif (params.modelSelectionLocked === true) return {\n"
+            "\tif (params.modelSelectionLocked === true || params.modelExplicit === true) return {\n"
             "\t\tprovider,\n"
             "\t\tmodelId\n"
             "\t};\n"
@@ -377,6 +387,7 @@ PATCH_TRANSFORMS_2026_9_5 = {
             "\t\tmodelSelectionLocked: runParams.modelSelectionLocked,\n"
             "\t\thookRunner: params.hookRunner,",
             "\t\tmodelSelectionLocked: runParams.modelSelectionLocked,\n"
+            "\t\tmodelExplicit: runParams.modelExplicit,\n"
             "\t\tthinkLevelOverride: runParams.thinkLevelOverride,\n"
             "\t\thookRunner: params.hookRunner,",
         ),
@@ -389,7 +400,7 @@ PATCH_TRANSFORMS_2026_9_5 = {
             "\t\tmodel,\n"
             "\t\tauthStorage,\n"
             "\t\tmodelRegistry,\n"
-            "\t\tthinkingOverride\n"
+            "\t\tthinkingOverride: hookSelection.thinkingOverride\n"
             "\t};\n"
             "}",
         ),
