@@ -1,0 +1,33 @@
+name: Branch flow policy
+
+on:
+  pull_request_target:
+    branches: [main, integration]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  branch-flow:
+    name: Branch flow
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate pull request source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          number=$(jq -er '.number' "$GITHUB_EVENT_PATH")
+          expected_head=$(jq -er '.pull_request.head.sha' "$GITHUB_EVENT_PATH")
+          expected_base=$(jq -er '.pull_request.base.ref' "$GITHUB_EVENT_PATH")
+          pull=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number")
+          jq -e --arg repository "$GITHUB_REPOSITORY" --arg head "$expected_head" --arg base "$expected_base" '
+            .head.sha == $head and
+            .base.ref == $base and
+            .head.repo.full_name == $repository and
+            ((.base.ref == "main" and .head.ref == "integration") or
+             (.base.ref == "integration" and .head.ref != "main" and .head.ref != "integration"))
+          ' <<< "$pull" >/dev/null
